@@ -1,6 +1,7 @@
 "use client";
 
-import { explorerTx } from "@octane/sdk";
+import { explorerTx, swarmLink } from "@octane/sdk";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatUnits, type Hash } from "viem";
 
@@ -52,19 +53,34 @@ export function Makers() {
 
 function MakerCard({ journal }: { journal: Journal }) {
   const quoted = last(journal.lines, "quoted");
+  const started = last(journal.lines, "started");
+  const address = started ? String(started.address) : undefined;
+  const published = last(journal.lines, "published");
   const regime = last(journal.lines, "regime");
   const jobs = journal.lines.filter((line) => line.event === "relayed").slice(-3).reverse();
 
   return (
     <article className="rounded-2xl border border-zinc-800 p-5">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="font-medium capitalize">{journal.maker}</h2>
+        <h2 className="font-medium capitalize">
+          {journal.maker}
+          {address && (
+            <Link href={`/history?maker=${address}`} className="ml-2 text-sm font-normal normal-case text-orange-400 underline">
+              Statement
+            </Link>
+          )}
+        </h2>
         <p className="text-sm tabular-nums text-zinc-400">
           {quoted ? `${formatUnits(BigInt(String(quoted.fee)), 6)} USDT` : "not quoting"}
           {regime ? ` · ${String(regime.regime)}` : ""}
         </p>
       </div>
       {regime && <p className="mt-2 text-sm text-zinc-300">{String(regime.note)}</p>}
+      {published && (
+        <a href={swarmLink(String(published.reference))} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-orange-400 underline">
+          Public journal on Swarm
+        </a>
+      )}
       {jobs.length > 0 && (
         <ul className="mt-3 space-y-1 text-sm text-zinc-400">
           {jobs.map((job) => (

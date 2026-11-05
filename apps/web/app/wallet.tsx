@@ -3,7 +3,9 @@
 import {
   EF_USDC,
   WHITECHAIN_USDT,
+  UNRELIABLE_FADE,
   efDevnet,
+  fetchFadeScores,
   getQuotes,
   payOnEfDevnet,
   payOnWhitechain,
@@ -13,6 +15,7 @@ import {
   type MerchantOptIn,
   type PaymentResult,
 } from "@octane/sdk";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createPublicClient,
@@ -26,7 +29,7 @@ import {
   type Hex,
 } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
-import { MERCHANT, getMarket, whitechain } from "@/lib/market";
+import { INDEXER, MERCHANT, getMarket, whitechain } from "@/lib/market";
 import { loadWallet } from "@/lib/wallet";
 
 const DECIMALS = 6;
@@ -54,6 +57,8 @@ interface Plan {
   others: number;
   /** This recipient is a merchant whose checkout can cover the fee. */
   merchant: boolean;
+  /** Cheaper makers passed over because of their fade score. */
+  skipped: { style: string; maker: Address }[];
 }
 
 type Step =
@@ -129,7 +134,16 @@ export function Wallet() {
 
       const chain: Chain = body.intent.token === "USDC" ? "ef-devnet" : "whitechain";
       const { quotes } = await getQuotes(getMarket(), chain);
-      const best = quotes[0];
+      if (quotes.length === 0) throw new Error("No maker is quoting right now. Try again in a moment.");
+
+      // The fade detector: a maker with a poor public record is passed over, even if it's cheapest.
+      const scores = await fetchFadeScores(getMarket().reader, {
+        indexer: INDEXER,
+        makers: quotes.map((entry) => entry.quote.maker),
+      }).catch(() => new Map<Address, bigint>());
+      const faded = quotes.filter((entry) => (scores.get(entry.quote.maker) ?? 0n) > UNRELIABLE_FADE);
+      const reliable = quotes.filter((entry) => !faded.includes(entry));
+      const best = reliable[0] ?? quotes[0];
       if (!best) throw new Error("No maker is quoting right now. Try again in a moment.");
 
       setStep({
@@ -141,7 +155,8 @@ export function Wallet() {
           chain,
           symbol: body.intent.token,
           best,
-          others: quotes.length - 1,
+          others: reliable.length - 1,
+          skipped: reliable.length > 0 ? faded.map((entry) => ({ style: entry.style, maker: entry.quote.maker })) : [],
           merchant: chain === "whitechain" && recipient !== undefined && isAddressEqual(recipient, MERCHANT),
         },
       });
@@ -179,6 +194,7 @@ export function Wallet() {
               to: plan.to,
               amount: plan.amount,
               maxFee,
+              avoid: plan.skipped.map((entry) => entry.maker),
               ...(merchantPays ? { merchantOptIn: await merchantOptIn(plan.amount) } : {}),
             })
           : await payOnEfDevnet(getMarket(), {
@@ -245,7 +261,13 @@ export function Wallet() {
         {step.kind === "paid" && <Receipt plan={step.plan} result={step.result} />}
       </div>
 
-      <details className="mt-10 text-sm text-zinc-500">
+      {address && (
+        <Link href={`/history?payer=${address}`} className="mt-10 block text-sm text-orange-400 underline">
+          Your gas spend
+        </Link>
+      )}
+
+      <details className="mt-4 text-sm text-zinc-500">
         <summary className="cursor-pointer">Receive money</summary>
         <p className="mt-2 break-all font-mono" data-testid="address">
           {address ?? "…"}
@@ -287,6 +309,11 @@ function Confirm({
         </p>
       )}
       <p className="mt-1 text-sm text-zinc-400 first-letter:uppercase">{reason}</p>
+      {plan.skipped.length > 0 && (
+        <p className="mt-1 text-sm text-amber-400">
+          Passed over {plan.skipped.map((entry) => entry.style).join(" and ")}: too many failed deliveries.
+        </p>
+      )}
       {canMerchantPay && (
         <label className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
           <input
@@ -318,7 +345,8 @@ function Receipt({ plan, result }: { plan: Plan; result: PaymentResult }) {
         Paid {plan.name} {money(plan.amount)} {plan.symbol}
       </p>
       <p className="mt-1 text-sm text-zinc-400">
-        Fee {money(result.fee)} {plan.symbol} to {result.makerStyle}.
+        {result.feePaidBy === "merchant" ? `${plan.name} covered the` : "Fee"} {money(result.fee)} {plan.symbol}{" "}
+        {result.feePaidBy === "merchant" ? "fee, paid" : ""} to {result.makerStyle}.
       </p>
       <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-orange-400 underline">
         View receipt

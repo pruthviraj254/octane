@@ -5,6 +5,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CHAINS,
   arkivReader,
+  explorerTx,
+  fetchFills,
   getQuotes,
   payOnEfDevnet,
   payOnWhitechain,
@@ -114,6 +116,85 @@ server.registerTool(
         maker: result.makerStyle,
         explorer: result.explorerUrl,
         spentTodayBaseUnits: caps.spentToday().toString(),
+      });
+    } catch (error) {
+      return failure(error);
+    }
+  },
+);
+
+server.registerTool(
+  "send_batch",
+  {
+    description:
+      "Pays up to 60 people in one frame transaction on the EF devnet, for one maker fee. Pays in USDC, and the agent holds no ETH.",
+    inputSchema: {
+      payments: z
+        .array(
+          z.object({
+            to: z.string().describe("Recipient address"),
+            amount: z.string().regex(/^\d+(\.\d{1,6})?$/).describe("Amount in whole USDC"),
+          }),
+        )
+        .min(1)
+        .max(60),
+    },
+  },
+  async ({ payments }) => {
+    try {
+      const parsed = payments.map(({ to, amount }) => {
+        if (!isAddress(to)) throw new Error(`"${to}" isn't an address`);
+        return { to, amount: parseUnits(amount, decimals) };
+      });
+      const total = parsed.reduce((sum, payment) => sum + payment.amount, 0n);
+      caps.check(total);
+      const result = await payOnEfDevnet(market, {
+        sender: agent.address,
+        privateKey: agentKey,
+        payments: parsed,
+        maxFee: caps.maxFee,
+        maxFeePerGas: parseGwei("2"),
+      });
+      caps.record(total + result.fee);
+      return text({
+        paid: `${formatUnits(total, decimals)} USDC to ${parsed.length} people`,
+        fee: `${formatUnits(result.fee, decimals)} USDC, once`,
+        maker: result.makerStyle,
+        explorer: result.explorerUrl,
+      });
+    } catch (error) {
+      return failure(error);
+    }
+  },
+);
+
+server.registerTool(
+  "get_fill_history",
+  {
+    description:
+      "Lists settled payments, newest first, straight from Arkiv. Leave `maker` out to see this agent's own gas spend. Pass `nextCursor` from a result to read the next page.",
+    inputSchema: {
+      maker: z.string().optional().describe("A maker's address, for its statement"),
+      cursor: z.number().int().nonnegative().optional(),
+    },
+  },
+  async ({ maker, cursor }) => {
+    try {
+      if (maker && !isAddress(maker)) throw new Error(`"${maker}" isn't an address`);
+      const page = await fetchFills(market.reader, {
+        indexer: setting("INDEXER_ADDRESS") as Address,
+        ...(maker ? { maker: maker as Address } : { payer: agent.address }),
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      return text({
+        total: page.total.toString(),
+        nextCursor: page.nextCursor ?? null,
+        fills: page.fills.map((fill) => ({
+          chainId: fill.chainId.toString(),
+          fee: formatUnits(fill.fee, decimals),
+          when: new Date(Number(fill.ts) * 1000).toISOString(),
+          explorer: explorerTx(Number(fill.chainId), fill.txHash),
+        })),
       });
     } catch (error) {
       return failure(error);

@@ -16,3 +16,4 @@ export function getMarket(): MarketConfig {
 export const whitechain = createPublicClient({ chain: whitechainSepolia, transport: http() });
 
 export const MERCHANT = process.env.NEXT_PUBLIC_MERCHANT as Address;
+export const INDEXER = process.env.NEXT_PUBLIC_INDEXER as Address;

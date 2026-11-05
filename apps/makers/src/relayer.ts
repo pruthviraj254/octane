@@ -11,9 +11,7 @@ import {
 import { isAddressEqual, type Account, type Address, type Hash } from "viem";
 import type { WhitechainClients } from "./chain.ts";
 import type { Journal } from "./journal.ts";
-
-/** Refuses a payer that sends jobs faster than this. Part of the griefing shield. */
-const MIN_MS_BETWEEN_PAYER_JOBS = 1_000;
+import { Shield } from "./shield.ts";
 
 export interface RelayerDeps extends WhitechainClients {
   port: number;
@@ -27,7 +25,7 @@ class JobRefused extends Error {}
 /** Takes signed jobs from payers, checks them, and settles them with the maker's own WBT. */
 export function startRelayer(deps: RelayerDeps) {
   const { client, wallet, relay, maker, journal, port } = deps;
-  const lastJob = new Map<string, number>();
+  const shield = new Shield();
   // Transactions from one wallet go out one at a time.
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -39,9 +37,8 @@ export function startRelayer(deps: RelayerDeps) {
     if (quote.validUntil <= BigInt(Math.floor(Date.now() / 1000))) throw new JobRefused("quote expired");
     if (!(await isSignedByMaker(quote, job.quoteSig))) throw new JobRefused("not a quote this maker signed");
 
-    const seen = lastJob.get(payment.payer.toLowerCase());
-    if (seen && Date.now() - seen < MIN_MS_BETWEEN_PAYER_JOBS) throw new JobRefused("too many jobs from this payer");
-    lastJob.set(payment.payer.toLowerCase(), Date.now());
+    const refused = shield.refuse(payment.payer);
+    if (refused) throw new JobRefused(refused);
   }
 
   // Each path simulates immediately before sending: a job that would revert costs nothing to refuse.
@@ -118,6 +115,7 @@ export function startRelayer(deps: RelayerDeps) {
           reply(200, { txHash, explorerUrl });
         } catch (error) {
           const refused = error instanceof JobRefused;
+          if (!refused) shield.strike(job.payment.payer);
           const reason = refused ? error.message : "simulation or submission failed";
           journal.write("refused", {
             reason,

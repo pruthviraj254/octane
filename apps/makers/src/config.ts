@@ -53,10 +53,10 @@ export const REFRESH_MS = 10_000;
 
 /** The EF devnet has no ETH/USDC market to price from, so this is a fixed, disclosed fee. */
 export const PATH_A_FEE = 50_000n; // 0.05 USDC
-/** Layout 1 with up to four user calls. */
-export const PATH_A_MAX_GAS = 1_000_000n;
+/** Layout 1 with up to 60 user calls, the most that fit in a frame transaction. */
+export const PATH_A_MAX_GAS = 12_000_000n;
 /** Below this the clone can't back its quote, so the maker stops offering it. */
-export const MIN_CLONE_BALANCE = 10_000_000_000_000_000n; // 0.01 ETH
+export const MIN_CLONE_BALANCE = 30_000_000_000_000_000n; // 0.03 ETH
 
 /**
  * Settings come from a file read into a private map, not process.env, so private keys are

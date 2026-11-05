@@ -98,3 +98,17 @@ export async function fetchMakerStats(
     inputs: row.inputs.value as Hex,
   };
 }
+
+/** A fade score above this means a maker often fails to deliver. Basis points. */
+export const UNRELIABLE_FADE = 3_000n;
+
+/** Each maker's fade score, for the makers that have one. */
+export async function fetchFadeScores(
+  reader: ArkivReader,
+  args: { indexer: Address; makers: readonly Address[] },
+): Promise<Map<Address, bigint>> {
+  const scores = await Promise.all(
+    args.makers.map(async (maker) => [maker, await fetchMakerStats(reader, { indexer: args.indexer, maker })] as const),
+  );
+  return new Map(scores.flatMap(([maker, stats]) => (stats ? [[maker, stats.fadeScore] as const] : [])));
+}

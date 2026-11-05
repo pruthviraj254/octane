@@ -82,6 +82,7 @@ export interface PaymentResult {
   maker: Address;
   makerStyle: string;
   fee: bigint;
+  feePaidBy: "payer" | "merchant";
 }
 
 async function settleViaRelayer(market: MarketConfig, entry: BoardQuote, job: RelayJob): Promise<PaymentResult> {
@@ -95,6 +96,7 @@ async function settleViaRelayer(market: MarketConfig, entry: BoardQuote, job: Re
     maker: entry.quote.maker,
     makerStyle: entry.style,
     fee: entry.quote.fee,
+    feePaidBy: job.optIn ? "merchant" : "payer",
   };
 }
 
@@ -111,10 +113,13 @@ export async function payOnWhitechain(
     amount: bigint;
     maxFee: bigint;
     merchantOptIn?: { terms: MerchantOptIn; signature: Hex };
+    /** Makers to pass over, such as those with a poor fade score. */
+    avoid?: readonly Address[];
   },
 ): Promise<PaymentResult> {
   const { quotes } = await getQuotes(market, "whitechain");
-  const affordable = quotes.filter((entry) => entry.quote.fee <= args.maxFee);
+  const avoided = (maker: Address) => (args.avoid ?? []).some((address) => isAddressEqual(address, maker));
+  const affordable = quotes.filter((entry) => entry.quote.fee <= args.maxFee && !avoided(entry.quote.maker));
   if (affordable.length === 0) {
     throw new Error(quotes.length === 0 ? "no live quotes on Whitechain" : "every live quote is above your maximum fee");
   }
@@ -179,5 +184,6 @@ export async function payOnEfDevnet(
     maker: entry.quote.maker,
     makerStyle: entry.style,
     fee: entry.quote.fee,
+    feePaidBy: "payer",
   };
 }
