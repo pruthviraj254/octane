@@ -28,8 +28,8 @@ Built at ETHGlobal Mumbai, November 2026.
 | Piece | State |
 |---|---|
 | Path A: one maker, one admitted transaction | Not started |
-| Path B: three maker-relayers, binding nonce | Relay [deployed and verified](https://explorer.testnet.whitechain.io/address/0xc5DC3334636e5d053f0AC383722af4C05Db2a4Bf); one real payment settled; maker-relayers next |
-| Arkiv live quote board | Not started |
+| Path B: three maker-relayers, binding nonce | Working: [a payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest maker |
+| Arkiv live quote board | Working: three AI makers refreshing every ~10s, `/board` reads Arkiv directly |
 | MCP `send_sponsored` on Whitechain | Not started |
 | Basic concierge | Not started |
 
@@ -61,12 +61,15 @@ docs/           The full plan, open questions and evidence
 
 ## How to run
 
-Requires Node 22+, pnpm and Foundry.
+Requires Node 22+, pnpm, Foundry and a logged-in Claude Code (the makers use it for regime calls).
 
 ```bash
 pnpm install
 cp .env.example .env   # then fill in your own keys
-pnpm test
+pnpm test              # SDK, makers and contracts
+pnpm test:fork         # the relay against the real test USDT, nothing broadcast
+pnpm makers            # three AI makers
+pnpm web               # open http://localhost:3000/board
 ```
 
 ## Arkiv writers and a runnable query
@@ -75,7 +78,8 @@ Writer wallets and the live board query go here once the board is running.
 
 ## Current limitations
 
-- Only the Path B relay is deployed so far. There is no way to use it yet without running scripts.
+- Payments run from scripts for now; the wallet app is next.
+- Makers run on one machine with a logged-in Claude Code, on `127.0.0.1` endpoints.
 
 ## AI usage disclosure
 

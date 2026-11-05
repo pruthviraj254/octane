@@ -10,6 +10,12 @@ Real results only: transaction links, admission reports, measured gas and latenc
 
 **First real USDT payment:** [transaction](https://explorer.testnet.whitechain.io/tx/0xc34c96fac8183934d750a8b32a5dc138c76560ce0e6e8507f29c4c7bdb1d2424), 155,926 gas. Payer 19.094026 → 19.074026 USDT; merchant +0.01; maker +0.01. Payer WBT 0, payer transactions sent 0.
 
+**First payment chosen from the live board:** [transaction](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439). Three makers were quoting (Aggressive 0.068807, Balancer 0.078807, Cautious 0.099884 USDT). The payer picked the cheapest, signed, and Maker Aggressive settled it from its own wallet.
+
+**Failure tests on the live board:**
+- Crash: `kill -9` on Maker Balancer. Its quote left the board about 25s later, with no cleanup job.
+- Public RPC outage: Whitechain's RPC timed out repeatedly from the venue, and Maker Cautious dropped off a healthy Arkiv board. Makers now fail over to a second RPC and quote on the last good market reading for up to 60s.
+
 ## EF alt-mempool devnet
 
 ## Arkiv (Rabdi)
