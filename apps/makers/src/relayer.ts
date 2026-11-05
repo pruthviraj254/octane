@@ -8,7 +8,7 @@ import {
   redactAccessKey,
   type RelayJob,
 } from "@octane/sdk";
-import { isAddressEqual, type Account, type Address, type Hash } from "viem";
+import { BaseError, ContractFunctionRevertedError, isAddressEqual, type Account, type Address, type Hash } from "viem";
 import type { WhitechainClients } from "./chain.ts";
 import type { Journal } from "./journal.ts";
 import { Shield } from "./shield.ts";
@@ -23,6 +23,10 @@ export interface RelayerDeps extends WhitechainClients {
 }
 
 class JobRefused extends Error {}
+
+function isRevert(error: unknown): boolean {
+  return error instanceof BaseError && error.walk((cause) => cause instanceof ContractFunctionRevertedError) instanceof ContractFunctionRevertedError;
+}
 
 /** Takes signed jobs from payers, checks them, and settles them with the maker's own WBT. */
 export function startRelayer(deps: RelayerDeps) {
@@ -118,7 +122,8 @@ export function startRelayer(deps: RelayerDeps) {
           reply(200, { txHash, explorerUrl });
         } catch (error) {
           const refused = error instanceof JobRefused;
-          if (!refused) shield.strike(job.payment.payer);
+          // Only a job that would really revert counts against a payer, not our own network trouble.
+          if (isRevert(error)) shield.strike(job.payment.payer);
           const reason = refused ? error.message : "simulation or submission failed";
           journal.write("refused", {
             reason,

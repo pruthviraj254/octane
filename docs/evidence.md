@@ -20,6 +20,10 @@ Real results only: transaction links, admission reports, measured gas and latenc
 
 **Person paying from the wallet in a real browser:** typed "Pay Rahul 0.5 USDT", confirmed, and got a [receipt](https://explorer.testnet.whitechain.io/tx/0x2456a582f275750a52e5dde74d8dd4112b06d2d03743304fa27af078e7ea4270). The embedded wallet showed 0 gas tokens and 0 transactions sent.
 
+**Agent-to-agent auction on Arkiv:** an agent posted a job for two payments and three AI makers bid within the 15s window: Aggressive 0.065, Balancer 0.072873, Cautious 0.087123 USDT. The agent took the cheapest and both payments settled: [1](https://explorer.testnet.whitechain.io/tx/0xed2421b81b45bcf9e32bf74b2211784ac13a4f7fe9fc702a19fad7b1be80fb2e), [2](https://explorer.testnet.whitechain.io/tx/0x0bceb7b0f64a3a1ea1a5fe3d81d819421a6c377594c71d887f12fac45088a068).
+
+**Merchant-pays from the wallet:** [transaction](https://explorer.testnet.whitechain.io/tx/0x7cbd94b25ecc98eefd23fddf93f501b08fa0e34e310a2ecee2e37ded2b55f4a2). The payer paid exactly 0.2 USDT and the merchant covered the 0.067314 USDT fee.
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
@@ -40,6 +44,8 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 | Fee frame pays the maker 1 base unit | `0x590a777c` `BadFeeFrame()` |
 | Fee frame pays someone else | `0x590a777c` `BadFeeFrame()` |
 | Quote signature from another key | `0x35abf5ae` `BadMakerSignature()` |
+
+**Batched payout:** an agent paid 8 people in [one frame transaction](https://explorer.altmempool.wtf/tx/0x75002521cff97269a8925500cc83ef20c4739d0b42cbd7c9ad330124f472e0e2) for one 0.05 USDC fee. Each recipient's balance was checked onchain afterwards.
 
 **Deployed:** implementation `0xa8face600456e543f968e5a828f94b8ee9178d99`, factory `0xa8de82d087393dd10ff4e9af22ded8926d48dbe2`, Maker Cautious's clone `0xD31E030E11B4687e1B3EA2C4f7326f4C589C7b58` (staked 0.012 ETH). The devnet can reset; `scripts/setup-devnet.ts` rebuilds all of this.
 
