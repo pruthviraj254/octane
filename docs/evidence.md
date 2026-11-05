@@ -47,11 +47,15 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 
 **Batched payout:** an agent paid 8 people in [one frame transaction](https://explorer.altmempool.wtf/tx/0x75002521cff97269a8925500cc83ef20c4739d0b42cbd7c9ad330124f472e0e2) for one 0.05 USDC fee. Each recipient's balance was checked onchain afterwards.
 
+**Fee collected during validation (`pre_verify` spike):** [transaction](https://explorer.altmempool.wtf/tx/0x937869a23be5171336a817cb2fd40b7c45bc65045e9aab919684c2c8029d5ff2), admitted and mined. After a one-time approval, a staked paymaster pulled 0.05 USDC with `transferFrom` in a `pre_verify` frame, then approved payment after checking that frame's status. The sender held 0 ETH. EIP-3009 can't do this, because USDC's check uses `TIMESTAMP`. Octane still ships Layout 1; this is the upgrade path. Report: [`docs/evidence/preverify-spike.json`](evidence/preverify-spike.json).
+
 **Deployed:** implementation `0xa8face600456e543f968e5a828f94b8ee9178d99`, factory `0xa8de82d087393dd10ff4e9af22ded8926d48dbe2`, Maker Cautious's clone `0xD31E030E11B4687e1B3EA2C4f7326f4C589C7b58` (staked 0.012 ETH). The devnet can reset; `scripts/setup-devnet.ts` rebuilds all of this.
 
 **Person paying from the wallet in Hinglish:** typed "Rahul ko 0.25 USDC bhejo", confirmed, and a [Layout 1 frame transaction](https://explorer.altmempool.wtf/tx/0x70c66d4c0048d93ed4dbfce1e60bce89e721ef4f5251f10b77686e31b70ce73b) mined with status success, 131,159 gas. The embedded wallet held no ETH.
 
 ## Arkiv (Rabdi)
+
+**Maker key rotation:** a throwaway profile moved to a new wallet with [`changeOwnership`](https://rabdi.explorer.arkiv.network/tx/0xf2102f7d9ea53220928b755c20c76527f7e6e45e87e3d18bf1d753cc7e127255). The new wallet kept the journal reference, and the old wallet could no longer touch it. `scripts/rotate-profile-demo.ts`.
 
 **Probe on real Rabdi, `scripts/arkiv-probe.ts`:**
 | Measure | Result |

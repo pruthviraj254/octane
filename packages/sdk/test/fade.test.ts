@@ -48,6 +48,11 @@ describe("inputsFromJournal", () => {
     ],
   };
 
+  it("leaves out lines that say nothing about coverage", () => {
+    const old: JournalFile = { ...file, lines: [{ event: "quoted", ts: 10 }, { event: "quoted", ts: 20, wbt: "100", gasPrice: "1", maxGas: "50" }] };
+    expect(inputsFromJournal([old], 0, 40).inputs.covered).toEqual([true]);
+  });
+
   it("reads only the lines inside the window", () => {
     const { inputs, fills, fees } = inputsFromJournal([file], 0, 40);
     expect(inputs.quoteTimes).toEqual([10, 20]);

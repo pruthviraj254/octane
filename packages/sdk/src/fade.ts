@@ -71,9 +71,10 @@ export function inputsFromJournal(files: readonly JournalFile[], from: number, t
     from,
     to,
     quoteTimes: quoted.map((line) => line.ts),
-    covered: quoted.map((line) => {
-      if (!line.wbt || !line.gasPrice || !line.maxGas) return false;
-      return BigInt(line.wbt) >= BigInt(line.gasPrice) * BigInt(line.maxGas);
+    // A line without these fields says nothing about coverage, so it's left out rather than failed.
+    covered: quoted.flatMap((line) => {
+      if (!line.wbt || !line.gasPrice || !line.maxGas) return [];
+      return [BigInt(line.wbt) >= BigInt(line.gasPrice) * BigInt(line.maxGas)];
     }),
     auctionsWon: lines.filter((line) => line.event === "auction-won").length,
     auctionsSettled: lines.filter((line) => line.event === "auction-settled").length,
