@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+libs = ["lib"]
+solc_version = "0.8.28"
+# Whitechain Sepolia allows up to prague; the EF workshop contracts use cancun.
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+fs_permissions = [{ access = "read", path = "./test/fixtures" }]
