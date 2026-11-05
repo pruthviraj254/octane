@@ -42,20 +42,40 @@ Explorer links for real payments go here as they happen.
 | Whitechain Sepolia, USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` | Pending |
 | EF alt-mempool devnet | Pending |
 
-## Repository layout
+## Why onchain stablecoin settlement on Whitechain
+
+To be written from the working flow. It will say why this payment needs onchain stablecoin settlement, and what a regular payment rail couldn't do here.
+
+## Architecture
 
 ```
 contracts/      Foundry contracts: quote library, Path A paymaster, Path B relay
-packages/sdk/   @octane/sdk: quotes, both settlement paths, auctions, history, identity
+packages/sdk/   @octane/sdk: quotes, both settlement paths, Arkiv, identity
 packages/mcp/   MCP server for AI agents
 apps/makers/    Three AI makers: pricing, standing quotes, relayer, journal
 apps/web/       Wallet, concierge and market board
 apps/indexer/   Writes fills and maker stats to Arkiv
 arkiv/          Schema and Arkiv track write-ups
-docs/           The full plan
+docs/           The full plan, open questions and evidence
 ```
 
-Folders appear as each piece is built. Copy `.env.example` to `.env` to configure a local run.
+## How to run
+
+Requires Node 22+, pnpm and Foundry.
+
+```bash
+pnpm install
+cp .env.example .env   # then fill in your own keys
+pnpm test
+```
+
+## Arkiv writers and a runnable query
+
+Writer wallets and the live board query go here once the board is running.
+
+## Current limitations
+
+- Nothing is deployed yet, so nothing here is usable yet.
 
 ## AI usage disclosure
 
@@ -66,6 +86,10 @@ This project is built with AI assistance.
 - **In the product:** the makers call an LLM at runtime to choose a bounded risk buffer and write journal lines. Contracts enforce the limits, and the payer always signs a maximum fee.
 
 All project code is written during the event.
+
+## Credits
+
+- EF's [mempool-workshop](https://github.com/forshtat/mempool-workshop) and sidecar, used as references for frame transactions.
 
 ## License
 

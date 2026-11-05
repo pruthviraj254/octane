@@ -6,11 +6,15 @@ pragma solidity ^0.8.28;
 /// @dev Must stay identical to packages/sdk/src/quotes.ts. The fixture test in
 /// test/QuoteLib.t.sol fails if the two drift apart.
 ///
-/// This library deliberately reads no time and no storage, so OctanePaymaster can
-/// call it during VERIFY. Callers enforce the rest themselves:
+/// This library reads no time and no storage, so OctanePaymaster can call digest()
+/// during VERIFY. isSignedByMaker() uses ecrecover and is for Path B only: on Path A
+/// the maker's signature travels as a frame transaction signature entry instead, and
+/// the paymaster reads the protocol's result with SIGPARAM.
+/// Callers enforce the rest themselves:
 /// - validUntil: Path B checks block.timestamp; Path A relies on the EXPIRY_VERIFIER
 ///   frame, because TIMESTAMP is banned elsewhere during validation.
-/// - nonce: replay protection depends on the settlement path.
+/// - nonce: identifies a quote version. A quote can settle many payments until
+///   validUntil; each payment's replay protection comes from its own authorisation.
 library QuoteLib {
     struct Quote {
         address maker; // who gets paid and whose funds back the quote

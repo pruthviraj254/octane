@@ -22,3 +22,5 @@ contracts/cache/
 
 # OS
 .DS_Store
+next-env.d.ts
+contracts/broadcast/
