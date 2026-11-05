@@ -12,7 +12,8 @@
     "@octane/sdk": "workspace:*",
     "next": "^16.4.5",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "viem": "^2.57.16"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.4",

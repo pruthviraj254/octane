@@ -8,6 +8,7 @@
     "first-payment": "tsx first-payment.ts"
   },
   "dependencies": {
+    "@arkiv-network/sdk": "1.0.1",
     "@octane/sdk": "workspace:*",
     "viem": "^2.57.16"
   },

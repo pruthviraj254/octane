@@ -13,3 +13,13 @@ Real results only: transaction links, admission reports, measured gas and latenc
 ## EF alt-mempool devnet
 
 ## Arkiv (Rabdi)
+
+**Probe on real Rabdi, `scripts/arkiv-probe.ts`:**
+| Measure | Result |
+|---|---|
+| Create a quote | 195,864 gas, [transaction](https://rabdi.explorer.arkiv.network/tx/0x4c9bcd68b052f65afd9d23442c35ceadc4f4da4d73e145a34972703efde8987a) |
+| Refresh (patch + extension in one batch) | 93,804 gas, 0.000093804 tGLM, [transaction](https://rabdi.explorer.arkiv.network/tx/0x502840a864d05ace61de05808176f9aa3c3bf01e25fed597ec54c967f1669226) |
+| Visible to a query after the create confirmed | 237ms |
+| Left the board after the last refresh | 29s |
+
+Only used gas was charged, even with a 1M gas limit. At one refresh every 10s, 2 tGLM lasts about 59 hours.
