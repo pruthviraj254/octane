@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      '@forshtat/hegota-support':
+        specifier: 0.0.1
+        version: 0.0.1(viem@2.57.16(typescript@7.0.2)(zod@4.6.7))
 
   apps/indexer:
     dependencies:
@@ -104,6 +108,9 @@ importers:
       '@arkiv-network/sdk':
         specifier: 1.0.1
         version: 1.0.1(typescript@7.0.2)(viem@2.57.16(typescript@7.0.2)(zod@4.6.7))
+      '@forshtat/hegota-support':
+        specifier: 0.0.1
+        version: 0.0.1(viem@2.57.16(typescript@7.0.2)(zod@4.6.7))
       viem:
         specifier: ^2.57.16
         version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
@@ -323,6 +330,16 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@forshtat/hegota-support@0.0.1':
+    resolution: {integrity: sha512-F6ZvduwrMBjzjoYE85DH7JHRaDyx2V2+kgSsi2eUDLiAJR1uiqp6mRzkYOLA+Y3pjxDpw60Z07mTer/4bebcZQ==}
+    engines: {node: '>=20.12'}
+    peerDependencies:
+      solc: 0.8.28
+      viem: ^2.57.0
+    peerDependenciesMeta:
+      solc:
+        optional: true
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -1404,6 +1421,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@forshtat/hegota-support@0.0.1(viem@2.57.16(typescript@7.0.2)(zod@4.6.7))':
+    dependencies:
+      viem: 2.57.16(typescript@7.0.2)(zod@4.6.7)
 
   '@img/colour@1.1.0':
     optional: true

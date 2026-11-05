@@ -12,5 +12,8 @@
     "makers": "pnpm --filter @octane/makers all",
     "maker": "pnpm --filter @octane/makers start",
     "web": "pnpm --filter @octane/web dev"
+  },
+  "devDependencies": {
+    "@forshtat/hegota-support": "0.0.1"
   }
 }
