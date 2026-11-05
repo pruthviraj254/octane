@@ -3,6 +3,7 @@ export * from "./arkiv/client.ts";
 export * from "./arkiv/schema.ts";
 export * from "./arkiv/writer.ts";
 export * from "./identity.ts";
+export * from "./jobs.ts";
 export * from "./networks.ts";
 export * from "./pathB.ts";
 export * from "./quotes.ts";

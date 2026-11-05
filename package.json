@@ -8,6 +8,9 @@
     "test:contracts": "forge test --root contracts --no-match-path 'test/fork/*'",
     "test:fork": "forge test --root contracts --match-path 'test/fork/*' -vv",
     "typecheck": "pnpm -r typecheck",
-    "fixture:quote": "pnpm --filter @octane/sdk fixture:quote"
+    "fixture:quote": "pnpm --filter @octane/sdk fixture:quote",
+    "makers": "pnpm --filter @octane/makers all",
+    "maker": "pnpm --filter @octane/makers start",
+    "web": "pnpm --filter @octane/web dev"
   }
 }

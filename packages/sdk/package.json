@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@arkiv-network/sdk": "1.0.1",
-    "viem": "^2.57.16"
+    "viem": "^2.57.16",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
