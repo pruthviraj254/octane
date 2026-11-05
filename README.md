@@ -38,6 +38,18 @@ Built at ETHGlobal Mumbai, November 2026.
 
 Every result, with measured numbers, is in [`docs/evidence.md`](docs/evidence.md).
 
+## What it costs
+
+Measured, not estimated. Details are in [`docs/evidence.md`](docs/evidence.md).
+
+| Action | Gas | Note |
+|---|---|---|
+| Whitechain payment (relay, two transfers) | 155,926 | About 2× a plain token transfer. The maker pays it and prices it into its fee |
+| Path A sponsored payment | 327,023 | Five frames, with `pay` using 54,769 |
+| Arkiv quote refresh (patch + extension) | 93,804 | 0.000094 tGLM |
+
+At the base-fee floor a Whitechain payment costs the maker about 0.06 USDT in WBT, so makers quote from about 0.065 USDT, moving with the live WBT price and their own risk style.
+
 ## Proof of settlement
 
 Explorer links for real payments go here as they happen.

@@ -55,6 +55,8 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 
 ## Arkiv (Rabdi)
 
+**Reputation recomputed from public data alone (`pnpm recompute-fade`):** fade, uptime, coverage and fills all matched the board for Maker Aggressive, and the journal passed spot checks against 5 Arkiv writes and 5 Whitechain balances.
+
 **Maker key rotation:** a throwaway profile moved to a new wallet with [`changeOwnership`](https://rabdi.explorer.arkiv.network/tx/0xf2102f7d9ea53220928b755c20c76527f7e6e45e87e3d18bf1d753cc7e127255). The new wallet kept the journal reference, and the old wallet could no longer touch it. `scripts/rotate-profile-demo.ts`.
 
 **Probe on real Rabdi, `scripts/arkiv-probe.ts`:**
