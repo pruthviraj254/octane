@@ -25,3 +25,4 @@ contracts/cache/
 next-env.d.ts
 contracts/broadcast/
 apps/makers/data/
+packages/mcp/data/

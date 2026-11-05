@@ -3,6 +3,13 @@
     "whitechain-docs": {
       "type": "http",
       "url": "https://docs.whitechain.io/mcp"
+    },
+    "octane": {
+      "type": "stdio",
+      "command": "${CLAUDE_PROJECT_DIR:-.}/packages/mcp/node_modules/.bin/tsx",
+      "args": [
+        "${CLAUDE_PROJECT_DIR:-.}/packages/mcp/src/index.ts"
+      ]
     }
   }
 }

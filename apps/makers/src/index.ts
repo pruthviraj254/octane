@@ -2,26 +2,31 @@ import { ExpirationTime } from "@arkiv-network/sdk";
 import { addr, str } from "@arkiv-network/sdk/schema";
 import {
   ArkivWriter,
+  EF_USDC,
   MakerEntity,
   WHITECHAIN_USDT,
   arkivReader,
   arkivWallet,
   assertUsdtDomain,
+  efDevnet,
   fetchMakerProfile,
   redactAccessKey,
   signQuote,
   whitechainSepolia,
   type Quote,
 } from "@octane/sdk";
-import { formatEther, formatGwei, formatUnits } from "viem";
+import { createPublicClient, formatEther, formatGwei, formatUnits, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { estimateL1Fee } from "viem/op-stack";
-import { QuoteBook } from "./book.ts";
+import { QuoteBook, type StandingQuote } from "./book.ts";
 import { whitechainClients } from "./chain.ts";
 import {
   MAKERS,
   MAX_GAS,
+  MIN_CLONE_BALANCE,
   MIN_INVENTORY_WBT,
+  PATH_A_FEE,
+  PATH_A_MAX_GAS,
   QUOTE_VALIDITY_SECONDS,
   REFRESH_MS,
   hexSetting,
@@ -150,6 +155,31 @@ async function updateRegime(market: Market): Promise<void> {
 let stopping = false;
 let onBoard = false;
 
+const efClient = createPublicClient({ chain: efDevnet, transport: http(undefined, { timeout: 6_000 }) });
+
+/** A Path A quote, if this maker offers one and its clone can back it. */
+async function pathAQuote(seq: bigint): Promise<StandingQuote | undefined> {
+  if (!config!.quotesPathA) return undefined;
+  const clone = hexSetting("OCTANE_CLONE_CAUTIOUS");
+  try {
+    if ((await efClient.getBalance({ address: clone })) < MIN_CLONE_BALANCE) return undefined;
+  } catch {
+    // The devnet being unreachable says nothing about Whitechain, so that quote still goes out.
+    return undefined;
+  }
+  const quote: Quote = {
+    maker: account.address,
+    chainId: BigInt(efDevnet.id),
+    settlement: clone,
+    token: EF_USDC,
+    maxGas: PATH_A_MAX_GAS,
+    fee: PATH_A_FEE,
+    validUntil: seq + QUOTE_VALIDITY_SECONDS,
+    nonce: seq,
+  };
+  return { quote, sig: await signQuote(account, quote), style: config!.id, seq };
+}
+
 async function tick(): Promise<void> {
   const market = await currentMarket();
   recentBaseFees.push(market.gasPrice);
@@ -177,13 +207,16 @@ async function tick(): Promise<void> {
     validUntil: seq + QUOTE_VALIDITY_SECONDS,
     nonce: seq,
   };
-  const sig = await signQuote(account, quote);
-  const result = await book.refresh([{ quote, sig, style: config!.id, seq }]);
+  const entries: StandingQuote[] = [{ quote, sig: await signQuote(account, quote), style: config!.id, seq }];
+  const pathA = await pathAQuote(seq);
+  if (pathA) entries.push(pathA);
+  const result = await book.refresh(entries);
   if (stopping) return;
   if (result.status === "sent") onBoard = true;
   journal.write(result.status === "sent" ? "quoted" : "skipped", {
     seq,
     fee,
+    pathA: Boolean(pathA),
     regime: regime.name,
     bufferBps: regime.bufferBps,
     tx: result.status === "sent" ? result.txHash : undefined,

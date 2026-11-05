@@ -7,4 +7,5 @@ export * from "./jobs.ts";
 export * from "./networks.ts";
 export * from "./pathA.ts";
 export * from "./pathB.ts";
+export * from "./pay.ts";
 export * from "./quotes.ts";

@@ -60,7 +60,7 @@ export async function fetchBoard(
     chainId: bigint;
     token: Address;
     now: bigint;
-    isTrustedSettlement: (settlement: Address) => boolean;
+    isTrustedSettlement: (settlement: Address) => boolean | Promise<boolean>;
   },
 ): Promise<{ quotes: BoardQuote[]; blockNumber: bigint }> {
   const page = await reader
@@ -85,7 +85,7 @@ export async function fetchBoard(
       };
       const sig = row.sig.value as Hex;
       if (!isAddressEqual(row.$owner as Address, quote.maker)) return undefined;
-      if (!args.isTrustedSettlement(quote.settlement)) return undefined;
+      if (!(await args.isTrustedSettlement(quote.settlement))) return undefined;
       if (!(await isSignedByMaker(quote, sig))) return undefined;
       return {
         key: row.$key as Hex,

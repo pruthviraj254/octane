@@ -10,6 +10,8 @@ export interface MakerConfig {
   /** Adds up to one spread as WBT falls below target, so a thin maker quotes wider. */
   skewsInventory: boolean;
   targetWbt: bigint;
+  /** Also quotes on the EF devnet through this maker's staked clone. */
+  quotesPathA: boolean;
 }
 
 export const MAKERS: Record<MakerConfig["id"], MakerConfig> = {
@@ -19,6 +21,7 @@ export const MAKERS: Record<MakerConfig["id"], MakerConfig> = {
     spread: 30_000n,
     skewsInventory: false,
     targetWbt: 300_000_000_000_000_000n,
+    quotesPathA: true,
   },
   aggressive: {
     id: "aggressive",
@@ -26,6 +29,7 @@ export const MAKERS: Record<MakerConfig["id"], MakerConfig> = {
     spread: 5_000n,
     skewsInventory: false,
     targetWbt: 300_000_000_000_000_000n,
+    quotesPathA: false,
   },
   balancer: {
     id: "balancer",
@@ -33,6 +37,7 @@ export const MAKERS: Record<MakerConfig["id"], MakerConfig> = {
     spread: 15_000n,
     skewsInventory: true,
     targetWbt: 300_000_000_000_000_000n,
+    quotesPathA: false,
   },
 };
 
@@ -45,6 +50,13 @@ export const MAX_GAS = 200_000n;
 export const GAS_ESTIMATE = 165_000n;
 export const QUOTE_VALIDITY_SECONDS = 105n;
 export const REFRESH_MS = 10_000;
+
+/** The EF devnet has no ETH/USDC market to price from, so this is a fixed, disclosed fee. */
+export const PATH_A_FEE = 50_000n; // 0.05 USDC
+/** Layout 1 with up to four user calls. */
+export const PATH_A_MAX_GAS = 1_000_000n;
+/** Below this the clone can't back its quote, so the maker stops offering it. */
+export const MIN_CLONE_BALANCE = 10_000_000_000_000_000n; // 0.01 ETH
 
 /**
  * Settings come from a file read into a private map, not process.env, so private keys are
