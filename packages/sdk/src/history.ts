@@ -102,6 +102,15 @@ export async function fetchMakerStats(
 /** A fade score above this means a maker often fails to deliver. Basis points. */
 export const UNRELIABLE_FADE = 3_000n;
 
+/**
+ * The makers to pass over. If every maker scores badly, the score can't tell them apart, so
+ * none is passed over: a market with a poor record still beats no market.
+ */
+export function unreliableMakers(makers: readonly Address[], scores: ReadonlyMap<Address, bigint>): Address[] {
+  const unreliable = makers.filter((maker) => (scores.get(maker) ?? 0n) > UNRELIABLE_FADE);
+  return unreliable.length === makers.length ? [] : unreliable;
+}
+
 /** Each maker's fade score, for the makers that have one. */
 export async function fetchFadeScores(
   reader: ArkivReader,

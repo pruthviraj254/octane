@@ -42,6 +42,7 @@ const market: MarketConfig = {
   reader: arkivReader(setting("ARKIV_ACCESS_KEY")),
   relay: setting("OCTANE_RELAY") as Address,
   factory: setting("OCTANE_FACTORY") as Address,
+  indexer: setting("INDEXER_ADDRESS") as Address,
 };
 const caps = new SpendCaps(BigInt(setting("AGENT_MAX_FEE")), BigInt(setting("AGENT_DAILY_CAP")));
 

@@ -3,12 +3,12 @@
 import {
   EF_USDC,
   WHITECHAIN_USDT,
-  UNRELIABLE_FADE,
   efDevnet,
   fetchFadeScores,
   getQuotes,
   payOnEfDevnet,
   payOnWhitechain,
+  unreliableMakers,
   type BoardQuote,
   type Chain,
   type Intent,
@@ -141,23 +141,36 @@ export function Wallet() {
         indexer: INDEXER,
         makers: quotes.map((entry) => entry.quote.maker),
       }).catch(() => new Map<Address, bigint>());
-      const faded = quotes.filter((entry) => (scores.get(entry.quote.maker) ?? 0n) > UNRELIABLE_FADE);
+      const unreliable = unreliableMakers(quotes.map((entry) => entry.quote.maker), scores);
+      const faded = quotes.filter((entry) => unreliable.includes(entry.quote.maker));
       const reliable = quotes.filter((entry) => !faded.includes(entry));
-      const best = reliable[0] ?? quotes[0];
+      const best = reliable[0];
       if (!best) throw new Error("No maker is quoting right now. Try again in a moment.");
+
+      // Catch this here: a maker would only refuse it, and the payer would learn less.
+      const amount = parseUnits(body.intent.amount, DECIMALS);
+      const held = chain === "whitechain" ? balances?.usdt : balances?.usdc;
+      const isMerchant = chain === "whitechain" && recipient !== undefined && isAddressEqual(recipient, MERCHANT);
+      const needed = isMerchant ? amount : amount + best.quote.fee;
+      if (held !== undefined && held < needed) {
+        return setStep({
+          kind: "error",
+          message: `You have ${money(held)} ${body.intent.token}. This payment needs ${money(needed)} ${body.intent.token}${isMerchant ? "" : ", including the fee"}.`,
+        });
+      }
 
       setStep({
         kind: "confirm",
         plan: {
           name: body.intent.to,
           to: body.address,
-          amount: parseUnits(body.intent.amount, DECIMALS),
+          amount,
           chain,
           symbol: body.intent.token,
           best,
           others: reliable.length - 1,
-          skipped: reliable.length > 0 ? faded.map((entry) => ({ style: entry.style, maker: entry.quote.maker })) : [],
-          merchant: chain === "whitechain" && recipient !== undefined && isAddressEqual(recipient, MERCHANT),
+          skipped: faded.map((entry) => ({ style: entry.style, maker: entry.quote.maker })),
+          merchant: isMerchant,
         },
       });
     } catch (error) {

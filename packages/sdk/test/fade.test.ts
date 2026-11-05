@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeFade, inputsFromJournal, type JournalFile } from "../src/index.ts";
+import { UNRELIABLE_FADE, computeFade, inputsFromJournal, unreliableMakers, type JournalFile } from "../src/index.ts";
 
 const base = { from: 0, to: 100, auctionsWon: 0, auctionsSettled: 0 };
 const every10s = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
@@ -59,5 +59,25 @@ describe("inputsFromJournal", () => {
     expect(inputs.covered).toEqual([true, false]);
     expect(fills).toBe(1);
     expect(fees).toBe(70_000n);
+  });
+});
+
+describe("unreliableMakers", () => {
+  const good = "0x1111111111111111111111111111111111111111" as const;
+  const bad = "0x2222222222222222222222222222222222222222" as const;
+  const unknown = "0x3333333333333333333333333333333333333333" as const;
+
+  it("passes over a maker with a poor record", () => {
+    const scores = new Map([[good, 0n], [bad, UNRELIABLE_FADE + 1n]]);
+    expect(unreliableMakers([good, bad], scores)).toEqual([bad]);
+  });
+
+  it("gives a new maker with no record the benefit of the doubt", () => {
+    expect(unreliableMakers([unknown], new Map())).toEqual([]);
+  });
+
+  it("passes over nobody when every maker scores badly", () => {
+    const scores = new Map([[good, 9_000n], [bad, 9_000n]]);
+    expect(unreliableMakers([good, bad], scores)).toEqual([]);
   });
 });

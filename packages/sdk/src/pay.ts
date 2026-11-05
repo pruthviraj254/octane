@@ -12,6 +12,7 @@ import { fetchBoard, fetchMakerProfile, type BoardQuote } from "./arkiv/board.ts
 import type { ArkivReader } from "./arkiv/client.ts";
 import type { ArkivWriter } from "./arkiv/writer.ts";
 import { bidQuoteHash, fetchBids, postRequest, recordWinner, type Bid } from "./auction.ts";
+import { fetchFadeScores, unreliableMakers } from "./history.ts";
 import { submitRelayJob } from "./jobs.ts";
 import { EF_USDC, WHITECHAIN_USDT, efDevnet, explorerTx, whitechainSepolia } from "./networks.ts";
 import { buildLayout1, frameTxHash, sendToAltMempool, signFrameTx, usdcTransferCall } from "./pathA.ts";
@@ -31,6 +32,15 @@ export interface MarketConfig {
   relay: Address;
   /** The deployed paymaster factory on the EF devnet. */
   factory: Address;
+  /** The indexer whose fade scores to respect. Left out, every maker is treated alike. */
+  indexer?: Address;
+}
+
+/** Makers with a poor public record. A failed read mustn't stop a payment, so it passes over nobody. */
+async function makersToAvoid(market: MarketConfig, makers: readonly Address[]): Promise<Address[]> {
+  if (!market.indexer) return [];
+  const scores = await fetchFadeScores(market.reader, { indexer: market.indexer, makers }).catch(() => new Map<Address, bigint>());
+  return unreliableMakers(makers, scores);
 }
 
 const FACTORY_ABI = [
@@ -120,7 +130,8 @@ export async function payOnWhitechain(
   },
 ): Promise<PaymentResult> {
   const { quotes } = await getQuotes(market, "whitechain");
-  const avoided = (maker: Address) => (args.avoid ?? []).some((address) => isAddressEqual(address, maker));
+  const avoid = args.avoid ?? (await makersToAvoid(market, quotes.map((entry) => entry.quote.maker)));
+  const avoided = (maker: Address) => avoid.some((address) => isAddressEqual(address, maker));
   const affordable = quotes.filter((entry) => entry.quote.fee <= args.maxFee && !avoided(entry.quote.maker));
   if (affordable.length === 0) {
     throw new Error(quotes.length === 0 ? "no live quotes on Whitechain" : "every live quote is above your maximum fee");
@@ -173,7 +184,8 @@ export async function runAuction(
 
   const isRelay = (settlement: Address) => isAddressEqual(settlement, market.relay);
   const bids = await fetchBids(market.reader, posted.key, isRelay);
-  const avoided = (maker: Address) => (args.avoid ?? []).some((address) => isAddressEqual(address, maker));
+  const avoid = args.avoid ?? (await makersToAvoid(market, bids.map((bid) => bid.maker)));
+  const avoided = (maker: Address) => avoid.some((address) => isAddressEqual(address, maker));
   const winner = bids.find((bid) => bid.quote.fee <= args.maxFee && !avoided(bid.maker));
   if (!winner) throw new Error(bids.length === 0 ? "no maker bid in time" : "no acceptable bid");
 

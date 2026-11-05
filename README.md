@@ -133,7 +133,8 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 
 ## Current limitations
 
-- Makers run on one machine with a logged-in Claude Code, on `127.0.0.1` endpoints, so the wallet must run on that machine too. Hosting needs public endpoints and an API key.
+- Makers run on one machine with a logged-in Claude Code, on `127.0.0.1` endpoints, so the wallet must run on that machine too. Hosting would need public endpoints and an LLM API client, which isn't built.
+- If Claude Code isn't available, makers still quote with a fixed 20% buffer, and the wallet falls back to a plain text parser.
 - The embedded wallet keeps its key in browser storage. That's fine for testnet tokens and wrong for real money.
 - A new wallet gets its first USDT by transfer, because it can't swap without WBT.
 - Path A fees are a fixed 0.05 USDC, because the EF devnet has no ETH/USDC market to price from. Only Maker Cautious quotes on Path A.
