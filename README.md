@@ -28,7 +28,7 @@ Built at ETHGlobal Mumbai, November 2026.
 | Piece | State |
 |---|---|
 | Path A: one maker, one admitted transaction | Not started |
-| Path B: three maker-relayers, binding nonce | Not started |
+| Path B: three maker-relayers, binding nonce | Relay [deployed and verified](https://explorer.testnet.whitechain.io/address/0xc5DC3334636e5d053f0AC383722af4C05Db2a4Bf); one real payment settled; maker-relayers next |
 | Arkiv live quote board | Not started |
 | MCP `send_sponsored` on Whitechain | Not started |
 | Basic concierge | Not started |
@@ -39,7 +39,7 @@ Explorer links for real payments go here as they happen.
 
 | Network | Transaction |
 |---|---|
-| Whitechain Sepolia, USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` | Pending |
+| Whitechain Sepolia, USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` | [First real payment](https://explorer.testnet.whitechain.io/tx/0xc34c96fac8183934d750a8b32a5dc138c76560ce0e6e8507f29c4c7bdb1d2424): the payer held 0 WBT before and after, and sent no transaction |
 | EF alt-mempool devnet | Pending |
 
 ## Why onchain stablecoin settlement on Whitechain
@@ -75,7 +75,7 @@ Writer wallets and the live board query go here once the board is running.
 
 ## Current limitations
 
-- Nothing is deployed yet, so nothing here is usable yet.
+- Only the Path B relay is deployed so far. There is no way to use it yet without running scripts.
 
 ## AI usage disclosure
 

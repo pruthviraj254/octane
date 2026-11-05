@@ -272,7 +272,7 @@ export function encodeRelayJob(job: RelayJob): Hex {
 }
 
 /** Stops a wrong domain before anyone signs: a bad domain fails only once it's onchain. */
-export async function assertUsdtDomain(client: PublicClient): Promise<void> {
+export async function assertUsdtDomain(client: Pick<PublicClient, "readContract">): Promise<void> {
   const onchain = await client.readContract({
     address: WHITECHAIN_USDT,
     abi: [

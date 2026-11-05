@@ -1,0 +1,19 @@
+{
+  "name": "@octane/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "first-payment": "tsx first-payment.ts"
+  },
+  "dependencies": {
+    "@octane/sdk": "workspace:*",
+    "viem": "^2.57.16"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
