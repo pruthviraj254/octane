@@ -31,7 +31,7 @@ Built at ETHGlobal Mumbai, November 2026.
 | Path B: three maker-relayers, binding nonce | Working: [a payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest maker |
 | Arkiv live quote board | Working: three AI makers refreshing every ~10s, `/board` reads Arkiv directly |
 | MCP `send_sponsored` on Whitechain | Working: [a Claude agent paid 3 people](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c) with zero WBT |
-| Basic concierge | Not started |
+| Basic concierge | Working: "Pay Rahul 10 USDT" or "Rahul ko 10 USDC bhejo" in the wallet at `/` |
 
 ## Proof of settlement
 
@@ -78,8 +78,10 @@ Writer wallets and the live board query go here once the board is running.
 
 ## Current limitations
 
-- Payments run from scripts for now; the wallet app is next.
-- Makers run on one machine with a logged-in Claude Code, on `127.0.0.1` endpoints.
+- Makers run on one machine with a logged-in Claude Code, on `127.0.0.1` endpoints, so the wallet must run on that machine too.
+- The embedded wallet keeps its key in browser storage. That's fine for testnet tokens and wrong for real money.
+- The Path A fee is a fixed 0.05 USDC, because the EF devnet has no ETH/USDC market to price from.
+- Whitechain payers can't swap without WBT, so a new wallet gets its first USDT by transfer.
 
 ## AI usage disclosure
 

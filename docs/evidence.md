@@ -43,6 +43,8 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 
 **Deployed:** implementation `0xa8face600456e543f968e5a828f94b8ee9178d99`, factory `0xa8de82d087393dd10ff4e9af22ded8926d48dbe2`, Maker Cautious's clone `0xD31E030E11B4687e1B3EA2C4f7326f4C589C7b58` (staked 0.012 ETH). The devnet can reset; `scripts/setup-devnet.ts` rebuilds all of this.
 
+**Person paying from the wallet in Hinglish:** typed "Rahul ko 0.25 USDC bhejo", confirmed, and a [Layout 1 frame transaction](https://explorer.altmempool.wtf/tx/0x70c66d4c0048d93ed4dbfce1e60bce89e721ef4f5251f10b77686e31b70ce73b) mined with status success, 131,159 gas. The embedded wallet held no ETH.
+
 ## Arkiv (Rabdi)
 
 **Probe on real Rabdi, `scripts/arkiv-probe.ts`:**
