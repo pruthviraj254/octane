@@ -66,7 +66,10 @@ const endpoint = setting(`${config.envPrefix}_ENDPOINT`);
 const accessKey = setting("ARKIV_ACCESS_KEY");
 const journal = new Journal(config.id);
 
-const { client, wallet } = whitechainClients(setting("WHITECHAIN_RPC_URL"), account);
+const { client, wallet } = whitechainClients(
+  [setting("WHITECHAIN_RPC_URL"), setting("WHITECHAIN_RPC_FALLBACK_URL")],
+  account,
+);
 
 const reader = arkivReader(accessKey);
 const writer = new ArkivWriter(reader, arkivWallet(accessKey, account), account.address);
@@ -88,6 +91,28 @@ async function readMarket(): Promise<Market> {
     wbtPrice: wbtPriceFromSqrt(slot0[0]),
     wbtBalance,
   };
+}
+
+/**
+ * A failed Whitechain read shouldn't take a maker off a healthy Arkiv board, so it keeps quoting
+ * on the last good reading for a short while. Gas costs move slowly, and the signed quote only
+ * lives about 105s. Past this limit the maker stops refreshing and its quote expires.
+ */
+const MAX_MARKET_AGE_MS = 60_000;
+let lastMarket: { market: Market; at: number } | undefined;
+
+async function currentMarket(): Promise<Market> {
+  try {
+    const market = await readMarket();
+    lastMarket = { market, at: Date.now() };
+    return market;
+  } catch (error) {
+    if (lastMarket && Date.now() - lastMarket.at < MAX_MARKET_AGE_MS) {
+      journal.write("market-stale", { ageMs: Date.now() - lastMarket.at });
+      return lastMarket.market;
+    }
+    throw error;
+  }
 }
 
 async function publishProfile(): Promise<void> {
@@ -112,6 +137,7 @@ let regime: Regime = {
 const recentBaseFees: bigint[] = [];
 
 async function updateRegime(market: Market): Promise<void> {
+  if (recentBaseFees.length === 0) recentBaseFees.push(market.gasPrice);
   regime = await askRegime(llm, {
     style: config!.id,
     baseFeesGwei: recentBaseFees.map((fee) => formatGwei(fee)),
@@ -125,7 +151,7 @@ let stopping = false;
 let onBoard = false;
 
 async function tick(): Promise<void> {
-  const market = await readMarket();
+  const market = await currentMarket();
   recentBaseFees.push(market.gasPrice);
   if (recentBaseFees.length > 12) recentBaseFees.shift();
 
@@ -197,7 +223,7 @@ journal.write("started", { address: account.address, endpoint, spread: config.sp
 void (async () => {
   while (!stopping) {
     try {
-      await updateRegime(await readMarket());
+      await updateRegime(await currentMarket());
     } catch (error) {
       journal.write("regime-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
     }
