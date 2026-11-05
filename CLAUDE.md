@@ -78,5 +78,5 @@ Solo schedule and P1 order: plan section 10.
 
 ## Open questions (update as answers arrive)
 - **EF (mostly answered from their docs, plan 19.0):** still to test on the devnet: can a staked payer write the sender's USDC slots in a `pre_verify` pull (Layout 1b)? · the exact `EXPIRY_VERIFIER` address and data format · limits for ~50 SENDER frames · Anon-RPC support for Whitechain and Arkiv (hour-14 fallback).
-- **Whitechain:** where payers get the test USDT · how to verify contracts on the L2 explorer · more WBT for makers.
+- **Whitechain:** more WBT for makers. **Answered Nov 5:** payers get the test USDT by swapping WBT on the Uniswap V3 pool `0x5645101Ca8d2F7BaBC27b10359555767a1BdF999` (WWBT/USDT, 0.3% fee) through SwapRouter02 `0xe208cC685cD95D56E8ec6DEC9816476567fc6962`; no faucet or public mint found. USDT is a proxy to verified `TetherTokenV2` (has `receiveWithAuthorization`, `DOMAIN_SEPARATOR()`, no `eip712Domain()`). Verify contracts with `forge verify-contract --verifier blockscout --verifier-url https://explorer.testnet.whitechain.io/api/` (the `/api/` suffix is required).
 - **Arkiv:** does `update` extend expiry · reading past entity versions · ordering and pagination syntax · `transfer` in the SDK · backend-sponsored writes owned by the maker wallet · Swarm postage batch.
