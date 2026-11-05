@@ -1,0 +1,2269 @@
+<SYSTEM>This is the full developer documentation for Alternative Mempools</SYSTEM>
+
+# Alternative Mempools
+
+> Documentation for Alternative Mempools for EIP-8141 Frame Transactions.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+EIP-8141’s public mempool says no to almost everything that needs real validation logic. ERC-8421 lets nodes say yes, by pricing abuse with stake and reputation instead of banning whole features.
+
+Start here
+
+The problem, the three kinds of mempool and a [glossary](/start/glossary/).
+
+Concepts
+
+[Frame Transactions](/concepts/frame-transactions/), [stake](/concepts/entities-and-stake/), [reputation](/concepts/reputation/) and the [architecture](/concepts/architecture/).
+
+Rules
+
+Every ERC-8421 rule by [ID](/rules/), such as [BUDGET-010](/rules/budget/#budget-010).
+
+Guides
+
+[Quickstart](/guides/quickstart/), [run the sidecar](/guides/run-the-sidecar/), [stake an entity](/guides/staking/) and [read admission reports](/guides/admission-reports/).
+
+Reference
+
+[RPC methods](/reference/rpc-methods/), [configuration](/reference/configuration/), [CLI](/reference/cli/) and the [explorer API](/reference/explorer-api/).
+
+Project
+
+[Links](/project/links/), and [known differences](/project/differences/) between sources, marked (TBD).
+
+ERC-8421 is a draft. Rules and constants may change.
+
+# Architecture
+
+> Gateway nodes, per-mempool topics and block builders: how modular mempools fit together.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+A mempool is an app, not a protocol constant. Nobody in the world has to agree on one set of rules. Each mempool bundles its own validation rules, and nodes opt into the ones they want to serve. That is why we call them **modular**.
+
+## Components
+
+[Section titled “Components”](#components)
+
+```plaintext
+User or wallet
+      |
+      v
+Gateway node  -- picks the mempools -->  Canonical public mempool   (EIP-8141 rules)
+                                         Standard Alternative       (ERC-8421 rules)
+                                         Your mempool               (topic = hash of your rules)
+                                                  |
+                       one p2p network, one topic per mempool
+                                                  |
+                                                  v
+                                         Block builders (RPC)
+```
+
+* A **gateway node** receives a transaction from a user and forwards it to every mempool whose rules it satisfies.
+* Mempools gossip over **one peer-to-peer network, on separate topics**.
+* **Block builders** pull transactions from mempool nodes over RPC.
+* Each mempool node is a separate process. Reputation counters are kept per mempool.
+
+## Topics
+
+[Section titled “Topics”](#topics)
+
+Each Alternative Mempool is identified by its own topic, conventionally the IPFS hash of a document that describes its rules. The standard mempool’s ID in the sidecar’s default config is `QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk`.
+
+## Local and network-wide rules
+
+[Section titled “Local and network-wide rules”](#local-and-network-wide-rules)
+
+A node can also act as a solo submission channel with custom rules and no p2p connection. For that reason rules are split into network-wide rules, which damage the reputation of the sending peer, and local rules. See [Rules overview](/rules/).
+
+## Reaching the mempool is only the first step
+
+[Section titled “Reaching the mempool is only the first step”](#reaching-the-mempool-is-only-the-first-step)
+
+The Alternative Mempool rules partially satisfy the FOCIL profile for Frame Transactions. A transaction that complies may get better censorship resistance in an adversarial environment. FOCIL forces inclusion unless the transaction is invalid, so attesters need to know whether it is valid. (TBD: the ERC-8421 draft says only that it requires no change to the FOCIL rules of EIP-7805. The partial-satisfaction claim comes from the landing page.)
+
+## What modular mempools could add
+
+[Section titled “What modular mempools could add”](#what-modular-mempools-could-add)
+
+These are possibilities that a dedicated mempool could add. They are not part of ERC-8421 or the sidecar today.
+
+* **Proof aggregation.** A mempool could verify and aggregate proofs before inclusion.
+* **Pre-inclusion privacy.** A mempool could encrypt transactions until they are included.
+
+## The sidecar
+
+[Section titled “The sidecar”](#the-sidecar)
+
+The reference implementation of this architecture is the [mempool sidecar](/guides/run-the-sidecar/). It runs in `standalone` mode, with no p2p, or `node` mode, which joins the libp2p network. See [P2P mempool](/guides/p2p/).
+
+# Entities and stake
+
+> Which contracts count as entities, what stake does, and how the Staking Registry works.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+## Entities
+
+[Section titled “Entities”](#entities)
+
+Mempool rules are applied per entity: the sender, the payer and the factory of a transaction. Reputation is tracked per entity address, not per role.
+
+A **default-code entity** is an entity whose account has no code and so runs EIP-8141’s default code. It has no bytecode to trace, is never staked, and is exempt from the opcode, call and storage rules.
+
+## What stake buys
+
+[Section titled “What stake buys”](#what-stake-buys)
+
+Staking is a Sybil defence. Creating an entity is free, so the mempool needs an economic cost for creating an abusive one. A staked entity gets a wider set of permissions:
+
+| Permission                                                                                                  | Rule                               |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| A higher validation gas budget                                                                              | [BUDGET-010](/rules/budget/)       |
+| `BALANCE` and `SELFBALANCE` opcodes                                                                         | [OPCODES-010](/rules/opcodes/)     |
+| Access to its own storage                                                                                   | [STORAGE-031](/rules/storage/)     |
+| Read-only access to any storage in a contract that is not an entity of the transaction                      | [STORAGE-032](/rules/storage/)     |
+| Write access to slots associated with its address, in any contract that is not an entity of the transaction | [STORAGE-033](/rules/storage/)     |
+| Factory access to the sender’s associated storage in a deploying transaction                                | [STORAGE-022](/rules/storage/)     |
+| No sender-wide pending limit while `ACTIVE`                                                                 | [LIFECYCLE-030](/rules/lifecycle/) |
+| No cap on pending transactions while `ACTIVE`                                                               | [REPUTATION](/rules/reputation/)   |
+
+## The stake is never slashed
+
+[Section titled “The stake is never slashed”](#the-stake-is-never-slashed)
+
+There are no penalty mechanisms in the Alternative Mempools protocol. The significant lock-up period is the cost of creating a new abusive entity.
+
+## Definition of staked
+
+[Section titled “Definition of staked”](#definition-of-staked)
+
+[STAKING-010](/rules/staking-and-solvency/): an entity is staked if the Staking Registry reports a stake of at least `MIN_STAKE_VALUE` and an unstake delay of at least `MIN_UNSTAKE_DELAY`, and withdrawal has not been initiated.
+
+* `MIN_STAKE_VALUE` is per chain. It is roughly the equivalent of USD 1000 in the native token.
+* `MIN_UNSTAKE_DELAY` is `86400` seconds, one day.
+
+Calling `unlockStake()` starts a withdrawal. From that moment the entity is no longer considered staked, even though the funds stay in the registry until `withdrawStake` is called.
+
+## The Staking Registry
+
+[Section titled “The Staking Registry”](#the-staking-registry)
+
+Stake lives in a dedicated contract at `STAKING_REGISTRY_ADDRESS`. It implements:
+
+```solidity
+interface IStakingRegistry {
+    /// Lock `msg.value` as the caller's stake, with the given unstake delay.
+    function addStake(uint32 unstakeDelaySec) external payable;
+
+
+    /// Begin the withdrawal delay. From this point the caller is not considered to be staked.
+    function unlockStake() external;
+
+
+    /// Withdraw the stake after the delay has passed.
+    function withdrawStake(address payable withdrawAddress) external;
+
+
+    /// Return the stake information.
+    function getDepositInfo(address account)
+        external
+        view
+        returns (uint256 stake, uint32 unstakeDelaySec, uint64 withdrawTime);
+}
+```
+
+The registry keys everything off `msg.sender`. A contract entity such as a paymaster or factory must call `addStake` itself, so it needs code that forwards a call to the registry. See [Staking an entity](/guides/staking/).
+
+## Security note
+
+[Section titled “Security note”](#security-note)
+
+The stake provisions depend on a registry contract outside the EIP-8141 protocol. The correctness of the deployed registry is critical for the security of the whole Alternative Mempool system.
+
+# Frame Transactions and the validation prefix
+
+> Frames, modes, subclasses and the validation prefix shapes that mempools recognize.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+## Frames
+
+[Section titled “Frames”](#frames)
+
+A Frame Transaction is a list of frames. Each frame has a **mode**, **flags**, a **target**, separate **execution** and **state** gas limits, a **value** and **data**.
+
+| Mode      | Value | Meaning                                                                                      |
+| --------- | ----- | -------------------------------------------------------------------------------------------- |
+| `DEFAULT` | `0`   | Ordinary call frame.                                                                         |
+| `VERIFY`  | `1`   | Validation frame. It must call `APPROVE` to grant the scope in `flags`. Runs in static mode. |
+| `SENDER`  | `2`   | Body frame, executed with `tx.sender` as the caller.                                         |
+
+The approval scope is in bits 0-1 of `flags`: `0` none, `1` payment, `2` execution, `3` execution and payment. Bit 2 (`0x4`) is the atomic-batch flag. A `null` target resolves to `tx.sender`.
+
+Transactions also carry signatures. Each has a scheme: `0` ARBITRARY (no cryptographic check, the signer’s contract logic decides), `1` SECP256K1, `2` P256.
+
+## Validation prefix and execution body
+
+[Section titled “Validation prefix and execution body”](#validation-prefix-and-execution-body)
+
+The **validation prefix** is the shortest prefix of frames whose successful execution sets the `payer`. Every frame after it belongs to the **execution body**. Mempool rules apply to the validation prefix only.
+
+## Frame subclasses
+
+[Section titled “Frame subclasses”](#frame-subclasses)
+
+Mempools classify validation frames by role.
+
+| Subclass        | Mode      | Flags | Role                                                                                   |
+| --------------- | --------- | ----- | -------------------------------------------------------------------------------------- |
+| `self_verify`   | `VERIFY`  | `0x3` | Validates the transaction and approves both sender and payer.                          |
+| `only_verify`   | `VERIFY`  | `0x2` | Validates the transaction and approves only the sender.                                |
+| `pay`           | `VERIFY`  | `0x1` | Approves only the payer.                                                               |
+| `expiry_verify` | `VERIFY`  | `0x0` | Calls the expiry verifier contract.                                                    |
+| `deploy`        | `DEFAULT` | `0x0` | Deploys a new smart account, typically through a deterministic factory.                |
+| `pre_verify`    | `DEFAULT` | any   | Added by ERC-8421. A state-writing frame bound to the approving frame that follows it. |
+
+`pre_verify` is described in [Stateful validation with pre_verify](#stateful-validation-with-pre_verify).
+
+## Recognized validation prefixes
+
+[Section titled “Recognized validation prefixes”](#recognized-validation-prefixes)
+
+The canonical mempool recognizes four prefix shapes:
+
+| Shape                            | Frames                       |
+| -------------------------------- | ---------------------------- |
+| Self relay                       | `[self_verify]`              |
+| Self relay, new account          | `[deploy, self_verify]`      |
+| Canonical paymaster              | `[only_verify, pay]`         |
+| Canonical paymaster, new account | `[deploy, only_verify, pay]` |
+
+An optional `expiry_verify` frame may come first in any shape. The standard Alternative Mempool recognizes the same four shapes, and additionally allows one `pre_verify` frame immediately before each approving frame. See [PREFIX rules](/rules/prefix/).
+
+## Entities
+
+[Section titled “Entities”](#entities)
+
+Every validation frame is attributed to exactly one entity:
+
+* The **sender** is `tx.sender`. It runs the `self_verify` or `only_verify` frame.
+* The **payer** is the target of the frame that calls `APPROVE` with a payment scope. It runs the `pay` frame, or the `self_verify` frame when sender and payer are the same.
+* The **factory** is the target of the `deploy` frame.
+
+An `expiry_verify` frame is attributed to no entity, because its code is protocol-defined. See [Entities and stake](/concepts/entities-and-stake/).
+
+## Stateful validation with pre_verify
+
+[Section titled “Stateful validation with pre_verify”](#stateful-validation-with-pre_verify)
+
+`VERIFY` frames run in static mode, so they cannot write state. Some real validation logic needs a write first. A paymaster that pulls ERC-20 tokens from the sender during validation is the main example. The `pre_verify` frame provides that.
+
+A `pre_verify` frame is a `DEFAULT`-mode frame whose target is the same as the target of the approving `VERIFY` frame that **immediately follows it**. Each approving frame may be preceded by at most one `pre_verify` frame.
+
+The approving frame **must** check the status of the `pre_verify` frame before it calls `APPROVE`, using the frame status parameter of `FRAMEPARAM`. A failed `DEFAULT` frame does not invalidate a Frame Transaction, so without this check the approving frame could approve after the state writes it depends on were reverted.
+
+## Keyed nonces and recent roots
+
+[Section titled “Keyed nonces and recent roots”](#keyed-nonces-and-recent-roots)
+
+Frame Transactions carry an [EIP-8250](https://eips.ethereum.org/EIPS/eip-8250) keyed nonce (`nonce_keys`, `nonce_seq`). One sender, such as a privacy pool contract, can then have many independent transactions in flight. Transactions may also carry [EIP-8272](https://eips.ethereum.org/EIPS/eip-8272) recent-root references. See [Keyed nonces](/guides/keyed-nonces/).
+
+# Mempool types
+
+> Comparing the canonical public mempool, the standard Alternative Mempool and custom Alternative Mempools.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+A transaction that violates a canonical public mempool rule must not be propagated over the public mempool. It may be propagated over an Alternative Mempool’s own transport if it satisfies that mempool’s rules. One transaction may travel over several Alternative Mempools if it satisfies all of their rules.
+
+## Comparison
+
+[Section titled “Comparison”](#comparison)
+
+|                      | Canonical public (EIP-8141) | Standard Alternative (ERC-8421) | Custom                                                                             |
+| -------------------- | --------------------------- | ------------------------------- | ---------------------------------------------------------------------------------- |
+| Defined by           | EIP-8141                    | ERC-8421                        | The mempool operator                                                               |
+| Stake and reputation | None                        | Yes                             | Operator’s choice                                                                  |
+| Trust to earn        | None                        | Stake plus reputation           | Operator’s choice                                                                  |
+| Identified by        | The public network          | A topic on the p2p network      | Its own topic, conventionally the IPFS hash of a document that describes its rules |
+
+## Limits side by side
+
+[Section titled “Limits side by side”](#limits-side-by-side)
+
+| Limit                               | Canonical (EIP-8141)                                                           | Standard Alternative (ERC-8421)                                                                                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Validation gas                      | `MAX_VERIFY_GAS`: 100,000 for signatures and the whole validation prefix       | `MAX_VERIFY_GAS_PER_ENTITY`: 100,000 per unstaked entity. `MAX_VERIFY_GAS_STAKED_ENTITY`: 1,000,000 per staked entity. The landing page currently shows 250,000 and 2,500,000 (TBD) |
+| State gas                           | `MAX_VERIFY_STATE_GAS`: 500,000 across the prefix                              | No cap. The payer’s solvency check already reserves it                                                                                                                              |
+| Writes in the prefix                | Only in the first `deploy` frame, to the sender’s own storage and code         | Also in `pre_verify` frames                                                                                                                                                         |
+| Storage of other contracts          | Rejected                                                                       | Storage associated with the sender is allowed. A staked entity may also read any storage and write slots keyed by its own address                                                   |
+| `BALANCE` and `SELFBALANCE`         | Banned                                                                         | Allowed for staked entities                                                                                                                                                         |
+| Pending per non-canonical paymaster | 1                                                                              | An unstaked payer starts at 10, growing with inclusions. No cap for an active staked payer                                                                                          |
+| Payer solvency                      | Explicit reservation for canonical paymasters, and per-payer exposure tracking | Reserved cost tracked for every payer                                                                                                                                               |
+
+## Standard Alternative Mempool extends the canonical one
+
+[Section titled “Standard Alternative Mempool extends the canonical one”](#standard-alternative-mempool-extends-the-canonical-one)
+
+A wallet author who targets the canonical public mempool needs no knowledge of ERC-8421. Everything the canonical mempool admits, the standard Alternative Mempool admits too.
+
+## Reputation is per mempool
+
+[Section titled “Reputation is per mempool”](#reputation-is-per-mempool)
+
+Reputation counters (`seen` and `included`) should be kept separately for each mempool. An entity throttled in one mempool is unaffected in another.
+
+## Custom Alternative Mempools
+
+[Section titled “Custom Alternative Mempools”](#custom-alternative-mempools)
+
+Operators can define their own rule sets, and nodes opt into the ones they want to serve. Each is identified by its own topic. See [Writing a custom mempool](/guides/custom-mempool/).
+
+# Reputation
+
+> How nodes count seen and included transactions and move entities between ACTIVE, THROTTLED and BANNED.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Reputation lets a node trust entities that behave and limit those that do not. Each node keeps its own view. There is no global reputation.
+
+## Counters
+
+[Section titled “Counters”](#counters)
+
+| Counter         | Meaning                                                                                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seen`          | How many times this node received a unique valid transaction that references the entity, over RPC or the mempool network. Admitting a replacement is not a new occurrence. |
+| `included`      | How many of those transactions were included in a canonical block. The node determines this from the block’s transactions and receipts.                                    |
+| `inclusionRate` | The ratio of `included` to `seen`.                                                                                                                                         |
+
+Every hour both counters are updated as `value = value * 23 // 24`. This is a practical reputation reset after four days of inactivity.
+
+## States
+
+[Section titled “States”](#states)
+
+Let `max_seen = seen // MIN_INCLUSION_RATE_DENOMINATOR`. Every entity is in exactly one state:
+
+| State         | Condition                                                        |
+| ------------- | ---------------------------------------------------------------- |
+| **BANNED**    | `max_seen > included + BAN_SLACK`                                |
+| **THROTTLED** | `included + THROTTLING_SLACK < max_seen <= included + BAN_SLACK` |
+| **ACTIVE**    | `max_seen <= included + THROTTLING_SLACK`                        |
+
+A new entity starts as `ACTIVE`. The slack values let an entity legitimately fail some transactions without penalty.
+
+## What each state means
+
+[Section titled “What each state means”](#what-each-state-means)
+
+| State                  | Effect                                                                                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ACTIVE, staked         | No additional limit. No cap on pending transactions or on transactions in a block the node builds.                                                                                                            |
+| ACTIVE, unstaked payer | At most `opsAllowed` pending transactions.                                                                                                                                                                    |
+| THROTTLED              | At most `THROTTLED_ENTITY_MEMPOOL_COUNT` (4) entries in the mempool, `THROTTLED_ENTITY_BLOCK_COUNT` (4) transactions in a block the node builds, and `THROTTLED_ENTITY_LIVE_BLOCKS` (10) blocks of residency. |
+| BANNED                 | Not allowed into the mempool. Every pending transaction that references it is removed.                                                                                                                        |
+
+For an unstaked sponsoring payer:
+
+```plaintext
+opsAllowed = SAME_UNSTAKED_ENTITY_MEMPOOL_COUNT
+           + inclusionRate * min(included, MAX_TXS_ALLOWED_UNSTAKED_ENTITY)
+```
+
+A new entity has `included = 0`, so it gets `SAME_UNSTAKED_ENTITY_MEMPOOL_COUNT` (10) pending transactions.
+
+## Blame attribution
+
+[Section titled “Blame attribution”](#blame-attribution)
+
+When a pending transaction fails revalidation, the node works out which entity caused it by finding the `VERIFY` frame whose behaviour changed.
+
+* If the `factory` or the `sender` caused the failure, the sponsoring `payer`’s `seen` is decremented. A payer must not lose reputation because of another entity.
+* If a staked `factory` is used and the `sender` fails, the factory’s `seen` is not decremented. It absorbs the failure in its own inclusion rate.
+* A staked `sender` is affected by the failures of all other entities of the transaction, even staked ones.
+
+## Bounded misbehaviour
+
+[Section titled “Bounded misbehaviour”](#bounded-misbehaviour)
+
+A staked entity can cause a bounded amount of invalidation before its reputation drops. The bound is `BAN_SLACK * MIN_INCLUSION_RATE_DENOMINATOR / 24` invalid transactions per hour, plus whatever throttling then allows. It is a rate limit, not a guarantee.
+
+The full rules are in [REPUTATION rules](/rules/reputation/).
+
+## In the sidecar
+
+[Section titled “In the sidecar”](#in-the-sidecar)
+
+The reference implementation exposes reputation through `skandha_explorer_listReputation` and the admin method `debug_bundler_dumpReputation`. The explorer labels an entity `ok`, `throttled` or `banned`. Status names are lowercase there. See [Explorer API](/reference/explorer-api/).
+
+# Reading admission reports
+
+> Use the explorer API to see why a node accepted or rejected a transaction.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+An admission report is the rule-by-rule verdict of a node on one transaction. It tells you which rule failed and for which entity.
+
+## Enable it
+
+[Section titled “Enable it”](#enable-it)
+
+Start the sidecar with `--explorer.enable`. Without the flag no history is recorded and every `skandha_explorer_*` call fails with “method not found” (`-32601`). The history is in memory only, bounded (10,000 events and 10,000 admission records by default), and cleared on restart.
+
+Anyone who can reach the RPC port can read the explorer data. Enable the flag only on a node that does not hold private order flow.
+
+## Look a transaction up
+
+[Section titled “Look a transaction up”](#look-a-transaction-up)
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "method": "skandha_explorer_getTransaction", "params": ["0x<txHash>"] }
+```
+
+Or list recent rejections:
+
+```json
+{ "jsonrpc": "2.0", "id": 3, "method": "skandha_explorer_listAdmissions", "params": [{ "outcome": "rejected", "limit": 5 }] }
+```
+
+Each check in `checks` has a `rule`, a `verdict` (`pass`, `fail` or `skipped`), an optional `detail`, and for per-entity rules a `frameIndex` and `entity` (`sender`, `payer` or `factory`).
+
+* `fail` means the rule ran and the transaction broke it. `detail` holds the same message the node returned to the submitter.
+* `skipped` means an earlier rule already failed. A rejected report lists every later rule as `skipped`.
+* A whitelisted entity’s violations show as `pass` with a `detail` that starts with `waived (…)`.
+
+## Rule IDs in the sidecar
+
+[Section titled “Rule IDs in the sidecar”](#rule-ids-in-the-sidecar)
+
+The sidecar’s report uses its own rule IDs, which do not match the ERC-8421 IDs (TBD). See [Explorer API](/reference/explorer-api/#rule-ids) for the list and [Spec and implementation differences](/project/differences/).
+
+## Reading a rejection
+
+[Section titled “Reading a rejection”](#reading-a-rejection)
+
+* The execution client reports every failure of the validation prefix as “validation prefix frame reverted”. A lack of funds, running out of gas, a revert and a loop look alike. The sidecar adds what it can tell: when the payer’s balance is below the transaction’s maximum cost, the message says so with both amounts. Otherwise it lists the gas limits given to the prefix frames.
+* Throttled still admits a transaction. Only a `BANNED` entity is rejected. The rejection text of a banned entity can be the generic “unstaked payer accessed …”, so check the entity’s reputation status in `skandha_explorer_listReputation` to find the real cause.
+* A rejection that only ethrex produced has no admission record in the sidecar.
+
+## From the workshop
+
+[Section titled “From the workshop”](#from-the-workshop)
+
+`npm run step_11_debug -- <txHash>` collects the admission report, the lifecycle events, `skandha_frameTransactionStatus` and ethrex’s receipt for a hash.
+
+# Choosing a mempool
+
+> Questions that decide whether your contract needs the canonical mempool or the standard Alternative Mempool.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Answer in order. The first “yes” in questions 1 to 3 means the canonical mempool will reject your validation code.
+
+1. **Does validation read storage that is not the sender’s own or associated storage?** For example another contract’s slot: an allowlist, an oracle, a shared nullifier set. Canonical: rejected. Standard Alternative: rejected while unstaked, accepted once the entity is staked.
+2. **Does validation use `BALANCE` or `SELFBALANCE`, or another gated opcode?** `BALANCE` is rejected for an unstaked entity and allowed for a staked one. Environment opcodes such as `TIMESTAMP`, `NUMBER`, `COINBASE`, `ORIGIN` and `GASPRICE` are rejected by **both** mempools, staked or not.
+3. **Does validation need more gas than the canonical cap** (`MAX_VERIFY_GAS`, 100,000 across the whole prefix)? The standard Alternative Mempool has a separate per-entity budget, higher for staked entities.
+4. **Can your entity stake and carry reputation risk?** A staked entity whose transactions keep being admitted but not included becomes `THROTTLED`, then `BANNED`. A banned entity is excluded even though it is staked. If you cannot accept that, stay inside the canonical rules.
+5. **Who will include your transaction?** A transaction admitted only by an Alternative Mempool reaches only nodes and block builders that run it. A canonical-mempool transaction reaches every EIP-8141 node.
+
+## Rule of thumb
+
+[Section titled “Rule of thumb”](#rule-of-thumb)
+
+| Your validation code                                                                                   | Choose                                                                                              |
+| ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Only the account’s own storage, no gated opcodes, within the gas cap                                   | **Canonical mempool.** Widest propagation, no stake.                                                |
+| Needs shared state (registries, nullifier sets, allowlists) or gated opcodes, and the entity can stake | **Standard Alternative Mempool**, with a staked entity.                                             |
+| Needs `TIMESTAMP`, `NUMBER`, `COINBASE`, `ORIGIN`, `GASPRICE` or similar in validation                 | **Neither.** Move that logic into the execution frames. Validation may not use environment opcodes. |
+| Needs a rule set neither mempool offers                                                                | A [custom Alternative Mempool](/guides/custom-mempool/).                                            |
+
+## Practical limits you will hit
+
+[Section titled “Practical limits you will hit”](#practical-limits-you-will-hit)
+
+* Fund contracts only through their creation `value`. A plain transfer runs the contract’s validation code outside a frame and fails.
+* Validation code cannot see the transaction signature hash from Solidity. The workshop wallets read the protocol-verified signer through `SIGPARAM`.
+* Deploying a contract on the devnet needs about 6M gas, because the code deposit is charged as state gas.
+* A transfer that creates a new account needs a non-zero `state` gas limit on the frame.
+
+See [Use cases](/guides/use-cases/) for common contract types.
+
+# Writing a custom mempool
+
+> How a third-party operator defines and serves its own Alternative Mempool rules.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The standard Alternative Mempool is not the only possible rule set. Node operators can agree on additional rule sets and opt into them next to the standard one.
+
+## What defines a custom mempool
+
+[Section titled “What defines a custom mempool”](#what-defines-a-custom-mempool)
+
+* **A rule document.** Describes which transactions the mempool admits, which it rejects, and how it tracks the entities in a transaction’s validation process.
+* **A topic.** Each Alternative Mempool is identified by its own topic, conventionally the IPFS hash of the document that describes its rules. In the architecture view the topic is “the hash of your rules”.
+* **Its own reputation counters.** `seen` and `included` should be kept separately for each mempool.
+
+A transaction that violates a standard rule must not be propagated in the standard mempool. It can be propagated in any custom mempool whose rules it satisfies. One transaction can be on several mempools at once.
+
+## Ideas
+
+[Section titled “Ideas”](#ideas)
+
+The landing page lists examples of what operators might change: trust a contract you audited, swap hot Solidity for a native binary, or track reputation differently.
+
+## In the sidecar
+
+[Section titled “In the sidecar”](#in-the-sidecar)
+
+The reference implementation has configuration hooks that are relevant to custom rules:
+
+| Setting                                                  | Effect                                                                                                |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `supportedMempools`                                      | The list of mempool IDs the node serves, each with its entry point.                                   |
+| `standardMempoolId`                                      | The ID of the standard mempool.                                                                       |
+| `whitelistedEntities`                                    | Addresses exempt from stake and opcode validation, per role. Violations are reported as `waived (…)`. |
+| `minStake`, `minUnstakeDelay`                            | Stake thresholds.                                                                                     |
+| `minInclusionDenominator`, `throttlingSlack`, `banSlack` | Reputation parameters.                                                                                |
+
+Serving a fully custom rule set means changing or extending the validation code in the sidecar. (TBD: the sidecar has no plugin mechanism for custom rule sets yet, and the process for registering a mempool topic is not documented.)
+
+## Tutorial
+
+[Section titled “Tutorial”](#tutorial)
+
+The [workshop repository](https://github.com/forshtat/mempool-workshop) is presented as a tutorial to build your own Alternative Mempool. See [Quickstart](/guides/quickstart/).
+
+# Public devnet
+
+> Connecting to the public EIP-8141 devnet and what it offers.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+A public, demonstration-only devnet for trying Frame Transactions and the Alternative Mempool. It runs an ethrex fork (execution) with Lighthouse (consensus), plus the sidecar as the mempool and relay.
+
+> This is a throwaway network. It has no security model, no faucet and no persistence guarantee, and may be reset at any time. Do not send anything of value to it. Several admin surfaces are deliberately left open.
+
+## Endpoints
+
+[Section titled “Endpoints”](#endpoints)
+
+|                        |                                                             |
+| ---------------------- | ----------------------------------------------------------- |
+| Execution RPC (ethrex) | `https://altmempool.forshtat.com`                           |
+| Mempool RPC (sidecar)  | `https://altmempool.forshtat.com/rpc`                       |
+| Sidecar WebSocket      | `wss://altmempool.forshtat.com/rpc`                         |
+| Chain ID               | `1337` (`0x539`)                                            |
+| Block time             | 6 seconds                                                   |
+| Explorer               | [explorer.altmempool.wtf](https://explorer.altmempool.wtf/) |
+
+(TBD: the sidecar README links an explorer at `altmempoolexplorer.forshtat.com`. The landing page links `explorer.altmempool.wtf`.)
+
+Both HTTPS routes accept `POST` with a JSON-RPC 2.0 body and send permissive CORS headers.
+
+* The **root URL** talks to ethrex. Use it for standard `eth_*`, `net_*`, `web3_*` and `txpool_*` methods, for legacy and 1559 transactions, and for the `ethrex_*` and `debug_*` methods.
+* **`/rpc`** talks to the sidecar. Use it to submit Frame Transactions into the Alternative Mempool and to follow them. The sidecar also proxies a whitelist of standard read methods to ethrex.
+
+## Getting funds
+
+[Section titled “Getting funds”](#getting-funds)
+
+There is no faucet. One account is funded at genesis, and its key is published on purpose in the sidecar repository (`deploy/devnet/genesis.values.env`). Everyone shares it, so nonce collisions are possible. Generate your own key and fund it once from the shared account with a plain transfer. The workshop’s `step_1_check` does this for you. Never use the shared key on a real network.
+
+## Plain transfers need more gas
+
+[Section titled “Plain transfers need more gas”](#plain-transfers-need-more-gas)
+
+The network runs the Amsterdam+ resource-based gas model. A transfer to a brand-new account costs an extra 183,600 state gas, so `gas: 21000` fails. Budget at least 204,600 gas. 250,000 is comfortable. A transfer to an existing account still costs 21,000.
+
+## Life of a Frame Transaction
+
+[Section titled “Life of a Frame Transaction”](#life-of-a-frame-transaction)
+
+1. A client calls `eth_sendFrameTransaction` on the sidecar.
+2. The sidecar makes one `ethrex_simulateFrameTransaction` call with tracing, recognizes the validation prefix shape, and enforces the rules per role.
+3. The transaction enters the sidecar’s mempool and is gossiped to other sidecars over libp2p.
+4. In `auto` mode the sidecar relays it to the local ethrex node through `ethrex_submitPrivilegedFrameTransaction`.
+5. Once a block includes it, the sidecar reads the receipt and sets the status to `OnChain` or `Reverted`.
+
+ethrex’s own mempool is not the Alternative Mempool. A Frame Transaction can also be sent to ethrex directly with `eth_sendRawTransaction` (type `0x06`), where ethrex applies the canonical rules.
+
+## Predeployed contracts
+
+[Section titled “Predeployed contracts”](#predeployed-contracts)
+
+Real mainnet contracts are deployed on the devnet by replaying their deployment transactions, including LINK, USDT, BAYC, Tornado Cash (0.1 ETH pool), USDC, WETH9, Permit2, Uniswap v4 and Railgun. A `NaiveStakingRegistry` implementing `IStakingRegistry` is deployed at `0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f`. The full list with addresses is in the sidecar repository, `deployments/devnet.md`. Addresses can change when the devnet is reset.
+
+## Known limitations
+
+[Section titled “Known limitations”](#known-limitations)
+
+* The `debug_bundler_*` admin methods are reachable from the internet. Do not call the `clear*` or `set*` methods unless you mean to affect everyone.
+* `ethrex_submitPrivilegedFrameTransaction` is unauthenticated on this devnet.
+* The explorer history is in memory only and is cleared on restart.
+
+# Keyed nonces and recent roots
+
+> How one sender can have many independent transactions in flight.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Frame Transactions carry an [EIP-8250](https://eips.ethereum.org/EIPS/eip-8250) keyed nonce and, optionally, [EIP-8272](https://eips.ethereum.org/EIPS/eip-8272) recent-root references. Together they let one sender, such as a privacy pool contract, have many independent transactions in flight. Each uses its own nonce key, for example derived from a nullifier, and proves against a root the sender published on chain.
+
+## RPC fields
+
+[Section titled “RPC fields”](#rpc-fields)
+
+These apply to `eth_sendFrameTransaction` and `eth_estimateFrameTransactionGas`. All values are hex.
+
+| Field                  | Meaning                                                                                                                                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nonceKeys`            | 1 to 16 strictly increasing keys. `["0x0"]` is the sender’s ordinary account nonce. Other keys are tracked in the `NONCE_MANAGER` predeploy (`0x…8250`). Key 0 is only valid on its own. |
+| `nonceSeq`             | Must equal the current sequence of every key in `nonceKeys`.                                                                                                                             |
+| `recentRootReferences` | Optional, up to 16 `{ sourceId, slot, root }`. Each must be committed in `RECENT_ROOT_ADDRESS` (`0x…8272`) and usable: `1 ≤ head_slot + 1 − slot ≤ 8191`.                                |
+| `nonce`                | Legacy shorthand for `nonceKeys: ["0x0"], nonceSeq: nonce`. Send either this or the pair, not both.                                                                                      |
+
+Transactions returned by `eth_getFrameTransactionByHash` and `debug_bundler_dumpMempool` carry `nonceKeys`, `nonceSeq` and `recentRootReferences`.
+
+## Mempool rules in the draft
+
+[Section titled “Mempool rules in the draft”](#mempool-rules-in-the-draft)
+
+* A pending transaction is identified by `(sender, nonce_keys, nonce_seq)`. Two transactions with the same `nonce_seq` whose keys overlap conflict, and the later one is a replacement that needs a 10% fee bump. See [LIFECYCLE-020](/rules/lifecycle/#lifecycle-020).
+* At most `SAME_NONCE_KEY_MEMPOOL_COUNT` (4) pending transactions may select the same `(sender, key)` pair.
+* At most `SAME_SENDER_MEMPOOL_COUNT` (64) pending transactions of an **unstaked** sender, whatever keys they select. A staked sender has no sender-wide limit while `ACTIVE`. See [LIFECYCLE-030](/rules/lifecycle/#lifecycle-030).
+
+## Rules in the sidecar
+
+[Section titled “Rules in the sidecar”](#rules-in-the-sidecar)
+
+The sidecar deliberately keeps its rules minimal and they differ from the draft (TBD).
+
+* A linear (`["0x0"]`) transaction occupies `sender:nonceSeq`. A keyed one occupies its exact key set plus `nonceSeq`. A transaction in an occupied slot is a replacement and needs a 10% fee bump.
+* **One pending transaction per `(sender, key)`.** A keyed transaction that shares a key with a pending one in another slot is rejected. Disjoint key sets coexist freely, and linear and keyed transactions of one sender do not block each other.
+* **No per-sender cap on keyed transactions.** Linear transactions keep a per-sender limit of 4, counted among linear transactions only. Third-party payers and factories are capped as before.
+* **Balances.** Pending transactions never owe an account more than its balance. A payer owes each transaction’s maximum gas cost, and a sender owes the `value` of its top-level frames. This is checked at admission and every block, and the newest entries are dropped first when a balance falls.
+* **Recent roots.** The slot window is checked before simulation, and commitment is checked by the simulation. Entries whose reference expires are evicted each block, and ones about to expire are not relayed. Failures appear under the explorer’s `recent-root` rule.
+
+## Cost
+
+[Section titled “Cost”](#cost)
+
+More keys cost more validation gas. Observed on the devnet, a `VERIFY` frame with 7 nonce keys ran out of gas at 30,000 and succeeded at 80,000.
+
+Keyed nonces change the p2p wire format. See [P2P mempool](/guides/p2p/#wire-format-version).
+
+# P2P mempool
+
+> Run two sidecar nodes and watch a Frame Transaction propagate by gossip.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Running `./skandha node` instead of `./skandha standalone` joins a libp2p network that gossips Frame Transactions between sidecar nodes. Gossipsub handles propagation and discv5 handles peer discovery.
+
+## Wire format version
+
+[Section titled “Wire format version”](#wire-format-version)
+
+Nodes must run the same wire format to share a mempool. Adding keyed nonces (EIP-8250) and recent-root references (EIP-8272) changed the SSZ `FrameTransaction`, so both protocols that carry it were versioned.
+
+| Protocol                            | Before                                                        | Now                                 |
+| ----------------------------------- | ------------------------------------------------------------- | ----------------------------------- |
+| Gossip topic                        | `/account_abstraction/<mempool>/frame_transaction/ssz_snappy` | `…/frame_transaction_v2/ssz_snappy` |
+| Req/resp `pooled_frame_txs_by_hash` | version 1                                                     | version 2                           |
+
+Old and new nodes simply do not exchange Frame Transactions. Upgrade every node of a network together. The other req/resp protocols (`pooled_frame_tx_hashes`, `status`, `ping`, `metadata`, `goodbye`) are unchanged.
+
+## Walkthrough
+
+[Section titled “Walkthrough”](#walkthrough)
+
+This is a bootnode and a regular node against a local ethrex devnet.
+
+1. **Build and start ethrex** from the `eip8141-tracer` branch. It does not build natively on macOS, so `test/e2e/ethrex-devnet.sh` builds and runs it in Docker: `./test/e2e/ethrex-devnet.sh build` once, then `./test/e2e/ethrex-devnet.sh up`. It listens on `http://127.0.0.1:8555` with chain ID 9 and the `ethrex` API namespace enabled.
+
+2. **Configure the bootnode.** Create `nodeA/config.json` with the sentinel entry point address, the standard mempool ID, a funded relayer key and `rpcEndpoint` set to `http://127.0.0.1:8555`. See [Run the sidecar](/guides/run-the-sidecar/).
+
+3. **Run the bootnode:**
+
+   ```sh
+   bun --bun packages/cli/bin/skandha.js node \
+     --configFile ./nodeA/config.json --dataDir ./nodeA \
+     --api.address 127.0.0.1 --api.port 14337 --api.wsPort 14337 \
+     --p2p.host 127.0.0.1 --p2p.enrHost 127.0.0.1 --p2p.port 4337 --p2p.enrPort 4337 \
+     --p2p.retainPeerId \
+     --executor.bundlingMode manual
+   ```
+
+   `--api.wsPort` defaults to `14337` and does not follow `--api.port`. Set it explicitly. `--p2p.retainPeerId` persists the node’s ENR to `./nodeA/enr`.
+
+4. **Read the ENR** with `cat ./nodeA/enr`.
+
+5. **Run the second node** with its own config, data directory and ports, and `--p2p.bootEnrs <the ENR>`. Use ports 14338 and 4338 on the same machine.
+
+6. **Confirm the nodes peered.** Gossipsub silently drops a publish with no subscribed peers. Call `skandha_connectedPeers` on both nodes and wait for a non-empty array.
+
+7. **Submit a Frame Transaction to node A** with `eth_sendFrameTransaction`. See [Submit a Frame Transaction](/guides/submit-a-transaction/).
+
+8. **Confirm it reached node B** with `eth_getFrameTransactionByHash` on node B’s RPC. A non-null result proves the transaction was published by gossip and that node B validated it and stored it in its own mempool.
+
+## Automated version
+
+[Section titled “Automated version”](#automated-version)
+
+```sh
+./test/e2e/ethrex-devnet.sh build   # once
+bun run build
+bun run test:e2e
+```
+
+## Connecting to the public devnet
+
+[Section titled “Connecting to the public devnet”](#connecting-to-the-public-devnet)
+
+A sidecar can peer with the devnet’s mempool by using the devnet’s ENR as a boot node. See `deploy/devnet/devnet-readme.md` in the sidecar repository for the ENR and flags.
+
+# Quickstart: the workshop
+
+> Eleven one-line commands that send Frame Transactions to a public devnet and show the canonical mempool and the standard Alternative Mempool side by side.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The [workshop repository](https://github.com/forshtat/mempool-workshop) is a hands-on tutorial. In eleven commands you send Frame Transactions to a public devnet, watch the canonical mempool reject a transaction that the standard Alternative Mempool accepts once the sender is staked, and debug a rejection.
+
+> The devnet is a throwaway network and can be reset at any time. The workshop’s reference node follows an earlier draft of the rules, not exactly ERC-8421 (TBD). See [Spec and implementation differences](/project/differences/).
+
+## Requirements
+
+[Section titled “Requirements”](#requirements)
+
+Node 20.12 or newer and npm. Foundry is optional, and only needed to change the contracts.
+
+## Install
+
+[Section titled “Install”](#install)
+
+```sh
+git clone https://github.com/forshtat/mempool-workshop.git && cd mempool-workshop
+npm install
+npm run step_1_check
+```
+
+`step_1_check` creates a throwaway key in `.env` (devnet only, never reuse it on a real network) and funds it from the devnet’s shared key.
+
+## The steps
+
+[Section titled “The steps”](#the-steps)
+
+| Command                                   | You achieve                                                                        |
+| ----------------------------------------- | ---------------------------------------------------------------------------------- |
+| `npm run step_1_check`                    | Confirm the devnet, explorer and your funded key work.                             |
+| `npm run step_2_tx_first`                 | Broadcast your first Frame Transaction.                                            |
+| `npm run step_3_tx_paymaster`             | Broadcast a Frame Transaction paid for by a paymaster.                             |
+| `npm run step_4_wallet_deploy`            | Deploy your own validation-frame wallet contract.                                  |
+| `npm run step_5_tx_wallet`                | Send a transaction validated by your wallet.                                       |
+| `npm run step_6_tx_violating_canonical`   | **Fail** to broadcast a rule-violating transaction to the canonical mempool.       |
+| `npm run step_7_stake`                    | Stake the wallet.                                                                  |
+| `npm run step_8_tx_violating_alt`         | Send **the same transaction** to the standard Alternative Mempool. It is accepted. |
+| `npm run step_9_reputation_burn`          | Get the entity banned. This is a declared shortcut, see below.                     |
+| `npm run step_10_tx_violating_alt_banned` | **Fail** to send the transaction because of low reputation.                        |
+| `npm run step_11_debug -- <txHash>`       | Debug any transaction: admission report, lifecycle, status.                        |
+
+Every step prints a short summary, accepts `--json` for one machine-readable object, and exits 0 when the expected outcome happened. For the “fail” steps, the expected outcome is the rejection. Run the steps in order the first time. State such as deployed addresses and the last transaction hash is kept in `.workshop-state.json`. If the devnet was reset, re-run the deploy steps with `--fresh`.
+
+## Step 9 cheats
+
+[Section titled “Step 9 cheats”](#step-9-cheats)
+
+Reputation should fall because an entity keeps producing transactions that are admitted but never included. That cannot be reproduced reliably on the devnet. `step_9_reputation_burn` writes the reputation counters directly through the devnet’s open `debug_bundler_setReputation` method, for your own wallet only. Real nodes restrict that method. Everything else exercises the real mechanism. `-- --reset` undoes the shortcut.
+
+## What you see
+
+[Section titled “What you see”](#what-you-see)
+
+Steps 6 to 8 use the same transaction, a wallet that reads another contract’s storage during validation:
+
+* The canonical mempool (ethrex on the devnet) rejects it with `StorageReadNonSender`.
+* The standard Alternative Mempool (the sidecar) rejects it with `unstaked payer accessed … slot …` while the wallet is unstaked.
+* Once the wallet is staked (step 7), the sidecar admits and mines it. The canonical mempool still rejects it.
+
+## Working with an AI agent
+
+[Section titled “Working with an AI agent”](#working-with-an-ai-agent)
+
+Point your agent at the repository’s `AGENTS.md`. Every step can be run alone, `--json` output is a single object, and the error codes are listed with fixes.
+
+# Run the sidecar
+
+> Install, configure and start the reference mempool node.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The sidecar is a TypeScript node for EIP-8141. It exposes `eth_sendFrameTransaction`, validates and simulates transactions against an execution client, relays them on chain, and gossips them to other sidecars over libp2p.
+
+There is no EntryPoint and no `eth_sendUserOperation`. It needs an execution client that implements EIP-8141. Today that is the `eip8141-tracer` branch of [ethrex](https://github.com/lambdaclass/ethrex). A standard client such as geth cannot validate or simulate Frame Transactions.
+
+The sidecar is a fork of [Etherspot’s Skandha](https://github.com/etherspot/skandha), which was an ERC-4337 bundler. The reference repository is [mempool-workshop-sidecar](https://github.com/forshtat/mempool-workshop-sidecar).
+
+## From source
+
+[Section titled “From source”](#from-source)
+
+```sh
+bun install
+bun run build
+cp config.json.default config.json
+```
+
+Edit `config.json`:
+
+* Point `rpcEndpoint` and `rpcEndpointSubmit` at an EIP-8141-aware execution client.
+* Set `relayers` to the private key or keys that will submit transactions on chain.
+
+Then start the node:
+
+```sh
+./skandha standalone
+```
+
+The RPC API is available at `http://localhost:14337/rpc/`.
+
+## With Docker
+
+[Section titled “With Docker”](#with-docker)
+
+```sh
+cp config.json.default config.json
+# edit config.json
+docker build -t skandha .
+docker run \
+  --mount type=bind,source="$(pwd)"/config.json,target=/usr/app/config.json,readonly \
+  -dp 14337:14337 \
+  skandha standalone
+```
+
+## Modes
+
+[Section titled “Modes”](#modes)
+
+| Mode       | Command                | Description                                                                |
+| ---------- | ---------------------- | -------------------------------------------------------------------------- |
+| Standalone | `./skandha standalone` | RPC, validation and relaying. No p2p.                                      |
+| Node       | `./skandha node`       | The same, plus the libp2p gossip network. See [P2P mempool](/guides/p2p/). |
+
+## Required configuration
+
+[Section titled “Required configuration”](#required-configuration)
+
+`entryPoints`, `canonicalEntryPoint` and `supportedMempools[].entryPoint` must all be set to the fixed EIP-8141 sentinel address `0x00000000000000000000000000000000000000aa`. It is not a deployed contract. Leaving one of them at a stale ERC-4337-style address silently disables gossip publishing in `node` mode.
+
+```json
+{
+  "entryPoints": ["0x00000000000000000000000000000000000000aa"],
+  "canonicalEntryPoint": "0x00000000000000000000000000000000000000aa",
+  "standardMempoolId": "QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk",
+  "supportedMempools": [
+    {
+      "mempoolId": "QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk",
+      "entryPoint": "0x00000000000000000000000000000000000000aa"
+    }
+  ],
+  "relayers": ["0x{RELAYER_PRIVATE_KEY}"],
+  "rpcEndpoint": "http://localhost:8545"
+}
+```
+
+`relayers` and a few other fields can also be set with environment variables such as `SKANDHA_RELAYERS`, `SKANDHA_BENEFICIARY` and `SKANDHA_RPC`. See [Configuration](/reference/configuration/) and [CLI options](/reference/cli/).
+
+## How relaying works
+
+[Section titled “How relaying works”](#how-relaying-works)
+
+In `auto` bundling mode the sidecar relays validated transactions on an interval through the `PrivilegedRelayer`. It calls `ethrex_submitPrivilegedFrameTransaction` on a co-located, trusted ethrex node. That method forces the transaction into the next payload build and bypasses ethrex’s own mempool. It is unauthenticated, so run it only against your own trusted node. The sidecar is an outsourced mempool client for one node, not a general-purpose bundler.
+
+## Enable the explorer API
+
+[Section titled “Enable the explorer API”](#enable-the-explorer-api)
+
+Start with `--explorer.enable` to record admission reports and lifecycle events. See [Reading admission reports](/guides/admission-reports/).
+
+# Staking an entity
+
+> Stake an entity at the Staking Registry and see the effect on admission.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Stake lives in the Staking Registry. The sidecar needs `stakingRegistryAddress` in its configuration (or the `SKANDHA_STAKING_REGISTRY_ADDRESS` environment variable). If it is unset or zero, every entity reads as unstaked.
+
+## Whose address is staked
+
+[Section titled “Whose address is staked”](#whose-address-is-staked)
+
+The registry keys everything off `msg.sender`. Stake the role’s own address, not just “your key”.
+
+* A plain EOA `sender` (the self relay shape, where the sender is its own payer) can call `addStake` directly from its own funded key.
+* A `payer` or `factory` **contract** cannot be staked by calling `addStake` from your own key. That would only stake your EOA. The contract itself has to call `addStake` as part of its own logic. Staking a contract entity needs a purpose-built contract with an `addStake` forwarding call.
+* A contract wallet can stake itself with no special code: in a self relay transaction the `SENDER` frame calls as `tx.sender`, so a `SENDER` frame that targets the registry with `addStake(86400)` and a value makes the wallet the staker.
+
+## Walkthrough on the devnet (self relay)
+
+[Section titled “Walkthrough on the devnet (self relay)”](#walkthrough-on-the-devnet-self-relay)
+
+1. Fund your own key from the shared devnet key.
+2. Call `addStake(86400)` on the `NaiveStakingRegistry` (`0xd51c04d7a0b01124e84de152f4e56d9eecb22d2f` on the devnet) from that key. Send **more than** the node’s `minStake` as the value. The sidecar’s `BALANCE`/`SELFBALANCE` carve-out checks `stake > minStake` strictly, while the other staked-entity thresholds use `>=`. The devnet’s `minStake` is 0.01 ETH, and the workshop stakes 0.012 ETH.
+3. Submit a Frame Transaction using the self relay shape (`[self_verify]`) from that key as `tx.sender`.
+4. Check the admission report with `skandha_explorer_getTransaction`. It shows the staked-entity permissions applying: wider associated-storage access, `BALANCE` and `SELFBALANCE` allowed, and the staked gas budget as the effective cap.
+5. Call `unlockStake()` to start a withdrawal, and after the delay `withdrawStake(yourAddress)` to get the ETH back.
+
+Calling `unlockStake()` alone drops every staked-entity permission immediately, because the registry’s `withdrawTime` becomes non-zero. This is the rule [STAKING-010](/rules/staking-and-solvency/#staking-010). The explorer’s reputation view shows the state as “unlocking”, which is distinct from “staked”.
+
+## Safety
+
+[Section titled “Safety”](#safety)
+
+Never stake from the shared genesis key or the published deployer key. Anyone holding those keys can call `unlockStake` and `withdrawStake` and take the funds.
+
+## Minimum unstake delay
+
+[Section titled “Minimum unstake delay”](#minimum-unstake-delay)
+
+ERC-8421 requires an unstake delay of at least `MIN_UNSTAKE_DELAY` (86,400 seconds). The sidecar’s documented default for `minUnstakeDelay` is 0 (TBD).
+
+# Submit a Frame Transaction
+
+> Send a Frame Transaction to the sidecar, follow it and dry-run it first.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+## Send
+
+[Section titled “Send”](#send)
+
+Submit the JSON form of the transaction to the sidecar with `eth_sendFrameTransaction`.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "eth_sendFrameTransaction",
+  "params": [
+    {
+      "chainId": "0x539",
+      "nonce": "0x6",
+      "sender": "0x5544596212F91984C986A919C8026DF0576816f9",
+      "frames": [
+        { "mode": 1, "flags": 3, "target": null,
+          "limits": { "execution": "0x7530", "state": "0x0" }, "value": "0x0", "data": "0x" },
+        { "mode": 2, "flags": 0, "target": "0x5544596212F91984C986A919C8026DF0576816f9",
+          "limits": { "execution": "0xc350", "state": "0x0" }, "value": "0x1", "data": "0x" }
+      ],
+      "signatures": [
+        { "scheme": 1, "signer": "0x", "msg": "0x",
+          "signature": "0x00<r: 32 bytes><s: 32 bytes>" }
+      ],
+      "fees": {
+        "maxPriorityFeePerGas": "0x3b9aca00",
+        "maxFeePerGas": "0x77359400",
+        "maxFeePerBlobGas": "0x0"
+      },
+      "blobVersionedHashes": []
+    }
+  ]
+}
+```
+
+This is a self relay. Frame 0 is a `VERIFY` frame that approves both execution and payment (`flags: 3`, so the sender pays its own gas). Frame 1 is a `SENDER` frame that moves 1 wei. The signature is over the canonical signature hash, packed as `<1 byte y-parity (0/1)><r><s>`. `signer: "0x"` means `tx.sender`, and `msg: "0x"` means the canonical signature hash.
+
+The response is the transaction hash, `keccak256(encodeRawFrameTx(tx))`. A rejected transaction returns no hash. Compute `keccak256(0x06 || rlp(tx))` yourself if you want to look the rejection up.
+
+The helpers that build and sign this shape are `buildUnsignedFrameTx`, `signFrameTx` and `toWire` in the sidecar repository’s `test/e2e/helpers.ts`, backed by `computeSigHash` in `packages/executor/src/services/FrameTxService/codec.ts`.
+
+## Frame limits
+
+[Section titled “Frame limits”](#frame-limits)
+
+Execution and state gas are limited separately, per frame. A frame that creates a new account needs a non-zero `state` limit. With `state: 0` it silently fails and drags the transaction’s top-level result to failure. Sending value to an existing account needs no state gas.
+
+## Follow it
+
+[Section titled “Follow it”](#follow-it)
+
+```sh
+# The sidecar's view: Submitted -> OnChain
+curl -s -X POST https://altmempool.forshtat.com/rpc -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"skandha_frameTransactionStatus","params":["0x<hash>"]}'
+
+
+# Per-frame receipt
+curl -s -X POST https://altmempool.forshtat.com/rpc -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"eth_getFrameTransactionReceipt","params":["0x<hash>"]}'
+```
+
+`skandha_frameTransactionStatus` returns one of `New`, `Pending`, `Submitted`, `OnChain`, `Finalized`, `Cancelled` or `Reverted`. For an unknown hash it returns the error “Frame transaction not found”.
+
+## Dry run
+
+[Section titled “Dry run”](#dry-run)
+
+* `eth_estimateFrameTransactionGas` on `/rpc` returns per-frame gas limits with markup applied.
+* `ethrex_simulateFrameTransaction` on the ethrex URL runs ethrex’s admission check plus full execution, optionally with a validation trace. It takes the RLP-encoded raw transaction (`0x06 || rlp(...)`), not the JSON form.
+
+## Common gotchas
+
+[Section titled “Common gotchas”](#common-gotchas)
+
+* Fund a paymaster through the `value` of its `CREATE`, never by a later plain transfer. Any external call runs the contract’s runtime code, which calls `APPROVE` outside a frame and halts.
+* A freshly created contract account starts at nonce 1. Use `nonce: "0x1"` for the first Frame Transaction from such a wallet.
+* Give a wallet contract a non-zero balance if a `SENDER` frame transfers value from it.
+* More nonce keys cost more validation gas.
+
+# Use cases
+
+> What you can build with an Alternative Mempool and what each one needs.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+These are the use cases the standard Alternative Mempool is designed to admit. Gas figures are illustrative.
+
+## Privacy protocols
+
+[Section titled “Privacy protocols”](#privacy-protocols)
+
+Some withdrawals need far more than 100k gas to verify. A privacy pool uses a shared sender and a keyed nonce per user, so every transaction is independent.
+
+* **Keyed nonces:** each user picks a fresh nonce key, typically derived from a nullifier. See [Keyed nonces](/guides/keyed-nonces/).
+* **Gas:** a proof check of about 200k gas (landing page figure, TBD). The draft allows 100,000 per unstaked entity and 1,000,000 per staked entity. The landing page shows 250,000 and 2,500,000 (TBD).
+* **Sender-wide pending cap:** a staked sender has none while `ACTIVE`.
+* **Rules involved:** [BUDGET-010](/rules/budget/#budget-010), [LIFECYCLE-030](/rules/lifecycle/#lifecycle-030).
+
+## Stateful paymasters
+
+[Section titled “Stateful paymasters”](#stateful-paymasters)
+
+Token paymasters are the best-known case. ERC-20 balances and allowances live in arbitrary storage. More broadly, a paymaster can keep its own state, such as quotas, subscriptions or credits.
+
+* A `pre_verify` frame lets the paymaster collect or update that state before it commits to pay.
+* A staked paymaster keeps its own storage and has no pending cap while `ACTIVE`.
+* **Rules involved:** [PREFIX-110](/rules/prefix/#prefix-110), [STORAGE-031](/rules/storage/#storage-031).
+
+## Keystore contracts
+
+[Section titled “Keystore contracts”](#keystore-contracts)
+
+Credentials live in storage outside the sender account. Slots associated with the sender are readable.
+
+* Reading storage associated with the sender in an external contract is allowed when the sender’s account already exists ([STORAGE-021](/rules/storage/#storage-021)).
+* Deploying the account in the same transaction needs a staked factory ([STORAGE-022](/rules/storage/#storage-022)).
+
+## Post-quantum signatures
+
+[Section titled “Post-quantum signatures”](#post-quantum-signatures)
+
+Post-quantum signatures run in plain EVM code, without precompiles. That costs gas well beyond the canonical limit. The landing page cites about 700k gas, or more, for plain-EVM verification (TBD).
+
+* A staked sender gets a higher budget ([BUDGET-010](/rules/budget/#budget-010)). Whether it is enough depends on the scheme and the final budget value (TBD).
+
+## Zero-knowledge proofs
+
+[Section titled “Zero-knowledge proofs”](#zero-knowledge-proofs)
+
+Verifying a proof in validation needs a higher budget. A minimal check may fit the unstaked budget, and stake buys more (TBD: the amounts depend on the final budget values).
+
+## Rules of your own
+
+[Section titled “Rules of your own”](#rules-of-your-own)
+
+Trust a contract you audited. Replace hot Solidity with a native binary. Track reputation differently. It is your mempool. See [Writing a custom mempool](/guides/custom-mempool/).
+
+# About this documentation
+
+> How this documentation was created.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+These docs were created from source code and specifications using generative AI. The sources are the ERC-8421 draft, EIP-8141, the sidecar repository, the workshop repository and the landing page.
+
+The content has not been fully reviewed by hand. Where sources disagree, the docs say so with **(TBD)**. See [Spec and implementation differences](/project/differences/).
+
+ERC-8421 is a draft. Rules and constants in these docs follow the draft and may change.
+
+Contact the maintainers through the [documentation repository](https://github.com/forshtat/mempool-workshop-documentation) for clarifications or if you find mistakes.
+
+# Spec and implementation differences
+
+> Known places where the landing page, the ERC-8421 draft, the sidecar and the workshop disagree.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Every place in these docs where sources disagree is marked **(TBD)**. Search this site for `(TBD)` to find them all. This page collects the known differences.
+
+## Landing page and ERC-8421 draft
+
+[Section titled “Landing page and ERC-8421 draft”](#landing-page-and-erc-8421-draft)
+
+| Topic                                 | Landing page                                  | ERC-8421 draft                                                              |
+| ------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| Validation gas, unstaked entity       | 250,000                                       | 100,000 (`MAX_VERIFY_GAS_PER_ENTITY`)                                       |
+| Validation gas, staked entity         | 2,500,000                                     | 1,000,000 (`MAX_VERIFY_GAS_STAKED_ENTITY`)                                  |
+| Privacy withdrawal proof check        | About 200,000 gas, fits without stake         | Not stated. Fits without stake only if the unstaked budget is at least that |
+| Post-quantum signature                | About 700,000 gas or more, needs stake        | Not stated                                                                  |
+| FOCIL                                 | The rules partially satisfy the FOCIL profile | Only states that no change to the FOCIL rules is required                   |
+| Proof aggregation, mempool encryption | Mentioned as possibilities                    | Not mentioned                                                               |
+
+The landing page values were updated after review feedback and the draft has not been updated yet.
+
+## Sidecar and ERC-8421 draft
+
+[Section titled “Sidecar and ERC-8421 draft”](#sidecar-and-erc-8421-draft)
+
+The sidecar’s rules come from an earlier ERC-7562-derived draft (`forshtat/ERCs` PR #6, “Update ERC-7562: Add EIP-8141 specific rules”), which later evolved into ERC-8421. The two are not equivalent. The workshop shows the earlier behaviour.
+
+| Topic                     | Sidecar and workshop                                                                                 | ERC-8421 draft                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Rule IDs                  | `OP-011`, `COD-010`, `storage`, `prefix` and so on, and an earlier `GREP-*` family                   | `BUDGET-010`, `STORAGE-021`, `REPUTATION-220` and so on                                                     |
+| Validation gas            | A single `MAX_VERIFY_GAS` of 100,000 in the workshop’s decision guide, with a separate staked budget | Per-entity budgets                                                                                          |
+| State gas cap             | A per-entity state-gas cap existed in the earlier draft                                              | No cap                                                                                                      |
+| Per-sender pending limits | Linear transactions: 4 per sender. Keyed transactions: no per-sender cap                             | `SAME_NONCE_KEY_MEMPOOL_COUNT` 4 per `(sender, key)` and `SAME_SENDER_MEMPOOL_COUNT` 64 per unstaked sender |
+| Minimum unstake delay     | Default 0                                                                                            | 86,400 seconds                                                                                              |
+| Pending identity          | `chainId:sender:nonceSeq` for linear, `chainId:sender:k[keys]:nonceSeq` for keyed                    | `(sender, nonce_keys, nonce_seq)`                                                                           |
+| Reputation state names    | `ok`, `throttled`, `banned`                                                                          | `ACTIVE`, `THROTTLED`, `BANNED`                                                                             |
+| Registry                  | Calls it the EIP-8421 `IStakingRegistry`                                                             | `IStakingRegistry` at `STAKING_REGISTRY_ADDRESS`                                                            |
+
+## Explorer URLs
+
+[Section titled “Explorer URLs”](#explorer-urls)
+
+The sidecar README links `altmempoolexplorer.forshtat.com`. The landing page and this site link `explorer.altmempool.wtf`.
+
+## Resolving
+
+[Section titled “Resolving”](#resolving)
+
+When the spec review happens, each **(TBD)** in these docs should be removed or turned into a firm statement, and the tables above updated or deleted.
+
+# Links
+
+> Specifications, repositories, the explorer and the tutorial.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+| Resource                                                                                           | What it is                                               |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [Landing page](https://altmempool.wtf)                                                             | Overview of Alternative Mempools for Frame Transactions. |
+| [ERC-8421](https://ethereum-magicians.org/t/erc-8421-frame-transaction-alternative-mempools/29800) | The specification and its discussion.                    |
+| [EIP-8141](https://eips.ethereum.org/EIPS/eip-8141)                                                | Frame Transactions and the canonical mempool.            |
+| [Explorer](https://explorer.altmempool.wtf/)                                                       | Live mempool, admissions and peers.                      |
+| [Sidecar](https://github.com/forshtat/mempool-workshop-sidecar)                                    | The reference implementation, a TypeScript mempool node. |
+| [Workshop](https://github.com/forshtat/mempool-workshop)                                           | The hands-on tutorial.                                   |
+| [This documentation](https://github.com/forshtat/mempool-workshop-documentation)                   | Source of this site.                                     |
+
+Related specifications: [EIP-8250](https://eips.ethereum.org/EIPS/eip-8250) (keyed nonces), [EIP-8272](https://eips.ethereum.org/EIPS/eip-8272) (recent roots), [ERC-7562](https://eips.ethereum.org/EIPS/eip-7562) (the ERC-4337 validation rules that inspired the design).
+
+# CLI options
+
+> Command line flags of the skandha executable.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+```sh
+./skandha standalone   # RPC, validation and relaying, no p2p
+./skandha node         # the same, plus the libp2p network
+```
+
+| Flag                                   | Description                                                                                                                                                                                                                 | Default          |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `--configFile <path>`                  | Path to the config file.                                                                                                                                                                                                    | `./config.json`  |
+| `--dataDir <path>`                     | Path to the data directory.                                                                                                                                                                                                 | `~/.skandha/db/` |
+| `--redirectRpc`                        | Proxy standard `eth_*` calls straight to the underlying execution client.                                                                                                                                                   | `false`          |
+| `--executor.bundlingMode manual\|auto` | Relay transactions on an interval (`auto`), or only on demand (`manual`). Either way the node keeps following the chain, so transactions it holds are marked `OnChain` or `Reverted` when mined, including by another node. | `auto`           |
+| `--api.port <port>`                    | RPC server port.                                                                                                                                                                                                            | `14337`          |
+| `--api.wsPort <port>`                  | WebSocket port. It does not follow `--api.port`, so set it explicitly when running several nodes on one machine.                                                                                                            | `14337`          |
+| `--api.address <host>`                 | RPC bind address.                                                                                                                                                                                                           |                  |
+| `--explorer.enable`                    | Record admission reports and lifecycle events and serve `skandha_explorer_*`.                                                                                                                                               | off              |
+| `--metrics.enable`                     | Enable Prometheus metrics.                                                                                                                                                                                                  | `false`          |
+| `--metrics.host <host>`                | Metrics server host.                                                                                                                                                                                                        | `127.0.0.1`      |
+| `--metrics.port <port>`                | Metrics server port.                                                                                                                                                                                                        | `8008`           |
+| `--unsafeMode`                         | Vestigial. Only affects EIP-2930 transaction type selection.                                                                                                                                                                | `false`          |
+
+P2P flags used in the walkthrough: `--p2p.host`, `--p2p.enrHost`, `--p2p.port`, `--p2p.enrPort`, `--p2p.retainPeerId` and `--p2p.bootEnrs <ENR>`. See [P2P mempool](/guides/p2p/).
+
+Run `./skandha standalone --help` or `./skandha node --help` for the full list.
+
+# Configuration
+
+> The sidecar's config.json fields.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The sidecar reads `config.json` (start from `config.json.default`). `relayers` and a few other fields can also be set with `SKANDHA_*` environment variables such as `SKANDHA_RELAYERS`, `SKANDHA_BENEFICIARY`, `SKANDHA_RPC` and `SKANDHA_STAKING_REGISTRY_ADDRESS`.
+
+`entryPoints`, `canonicalEntryPoint` and `supportedMempools[].entryPoint` must all be the fixed EIP-8141 sentinel `0x00000000000000000000000000000000000000aa`. See [Run the sidecar](/guides/run-the-sidecar/#required-configuration).
+
+```jsonc
+{
+  "entryPoints": ["0x00000000000000000000000000000000000000aa"],
+  "canonicalEntryPoint": "0x00000000000000000000000000000000000000aa", // must match entryPoints[0]
+  "standardMempoolId": "QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk",
+  "supportedMempools": [
+    {
+      "mempoolId": "QmcFZKUX9qoo3StwVycJTAhwdiqbEjcwNvQVK246p3z1rk",
+      "entryPoint": "0x00000000000000000000000000000000000000aa"
+    }
+  ],
+  "relayers": ["0x{RELAYER_PRIVATE_KEY}"],
+  "beneficiary": "0x{FEE_COLLECTOR_ADDRESS}", // optional, defaults to the relayer
+  "rpcEndpoint": "http://localhost:8545",
+  "rpcEndpointSubmit": "", // optional, used only when submitting a relayed transaction
+  "minInclusionDenominator": 10, // optional, reputation parameter
+  "throttlingSlack": 10, // optional, reputation parameter
+  "banSlack": 50, // optional, reputation parameter
+  "minStake": 10000000000, // optional, minimum entity stake in wei
+  "minUnstakeDelay": 0, // optional, minimum entity unstake delay
+  "stakingRegistryAddress": "0x...", // optional, IStakingRegistry address; unset or zero means every entity reads as unstaked
+  "minSignerBalance": 1, // optional, minimum relayer balance (ETH) before it stops being used as a fee collector
+  "multicall": "0xcA11bde05977b3631167028862bE2a173976CA11", // optional
+  "estimationStaticBuffer": 21000, // optional, gas added to callGasLimit on estimation
+  "receiptLookupRange": 1024, // optional, block range searched for receipts
+  "etherscanApiKey": "", // optional, used to fetch gas prices
+  "conditionalTransactions": false, // optional
+  "gasPriceMarkup": 0, // optional, markup on skandha_getGasPrice in bps (500 = 5%)
+  "enforceGasPrice": false, // optional, reject transactions priced below the network gas price
+  "enforceGasPriceThreshold": 1000, // optional, allowed shortfall in bps
+  "eip2930": false, // optional
+  "useropsTTL": 300, // optional, mempool entry time-to-live in seconds
+  "whitelistedEntities": { // optional, addresses exempt from stake and opcode validation
+    "factory": [],
+    "paymaster": [],
+    "account": []
+  },
+  "maxConcurrentSubmissions": 10, // optional, maximum in-flight relay submissions
+  "bundleInterval": 10000, // interval (ms) between relay passes in auto mode
+  "maxSubmitAttempts": 3, // optional, resubmission attempts before an entry is cancelled
+  "bundleSize": 4, // optional, maximum transactions relayed per pass
+  "pvgMarkup": 0 // optional, gas added on top of the estimated pre-verification gas
+}
+```
+
+## Differences from the draft
+
+[Section titled “Differences from the draft”](#differences-from-the-draft)
+
+Some defaults differ from ERC-8421 values (TBD): `minUnstakeDelay` defaults to 0 while the draft requires 86,400, and `minStake` is expressed in wei instead of a per-chain USD-equivalent.
+
+# Explorer API
+
+> The skandha_explorer_* methods: admission reports, lifecycle events, peers and reputation.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+A read-only JSON-RPC surface for explorer UIs. It answers three questions the regular RPC methods cannot: why did this node accept or reject a Frame Transaction (a rule-by-rule report), what happened to it afterwards (a lifecycle event log, also a live stream), and how much does this node trust each entity (reputation and stake).
+
+It requires the node to be started with `--explorer.enable`. Without the flag every call fails with `-32601`. History is kept in memory only, bounded (10,000 lifecycle events and 10,000 admission records by default) and cleared on restart. The methods never change node state and are not gated to localhost or an admin key.
+
+## Conventions
+
+[Section titled “Conventions”](#conventions)
+
+* Requests are JSON-RPC 2.0 over `POST /rpc/` or the WebSocket at the same path. `params` is a positional array.
+* Numbers are JSON numbers: `seq`, `at`, `id`, `errorCode`, `frameIndex`, `chainId` and every time field (Unix milliseconds). Nonces and fee quantities, which can exceed 2^53, are `0x` hex strings.
+* Cursors are opaque. Pass back the `nextCursor` of the previous page unchanged. A page without `nextCursor` is the last one.
+* `limit` defaults to 50 and is capped at 200.
+* Invalid arguments return `-32600`. `getTransaction` on a hash the node knows nothing about returns `-32600` with `Frame transaction not found`.
+* Stored `detail` and `reason` texts are truncated to 1,024 characters.
+
+## Methods
+
+[Section titled “Methods”](#methods)
+
+| Method                              | Params                            | Returns                                                                                                                                                                                        |
+| ----------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `skandha_explorer_info`             | none                              | Node identity and history buffer state: `protocolVersion`, `chainId`, `version`, `commit`, `bundlingMode`, `p2pEnabled`, `latestSeq`, `oldestSeq`, `historyCapacity`, `bootId`. Call it first. |
+| `skandha_explorer_listTransactions` | `[{ status?, cursor?, limit? }]`  | The transactions currently in this node’s mempool store, newest first.                                                                                                                         |
+| `skandha_explorer_listAdmissions`   | `[{ outcome?, cursor?, limit? }]` | Admission records, newest first. Covers rejected and replaced transactions too.                                                                                                                |
+| `skandha_explorer_getTransaction`   | `[txHash]`                        | The mempool entry (or `null`), the admission record (or `null`) and the retained lifecycle events for one hash.                                                                                |
+| `skandha_explorer_peers`            | none                              | The connected p2p peers: `peerId`, `direction`, `connectedAt`, `lastReceivedAt`, `agentVersion`, `supportedMempools`. Empty without p2p.                                                       |
+| `skandha_explorer_listReputation`   | `[{ cursor?, limit? }]`           | Every tracked entity: `address`, `opsSeen`, `opsIncluded`, `status` (`ok`, `throttled`, `banned`), `isWhitelisted`, `isBlacklisted`, `stake`, `unstakeDelaySec`, `withdrawTime`, `isStaked`.   |
+
+`listReputation` makes up to `limit` concurrent on-chain reads per call (one `getDepositInfo` per address), so a polling caller can repeat a real cost.
+
+## Admission records
+
+[Section titled “Admission records”](#admission-records)
+
+An admission record is this node’s verdict on one transaction hash.
+
+| Field                | Meaning                                                                     |
+| -------------------- | --------------------------------------------------------------------------- |
+| `id`                 | Monotonic number, used as the pagination cursor.                            |
+| `txHash`, `sender`   | Hash and sender.                                                            |
+| `nonce`, `nonceKeys` | The EIP-8250 `nonceSeq` and keys, in hex.                                   |
+| `at`                 | Unix ms when this node received the transaction, before validation started. |
+| `source`             | `rpc`, `gossip:<peerId>` or `sync:<peerId>`.                                |
+| `outcome`            | `accepted`, `rejected`, `included`, `replaced` or `dropped`.                |
+| `errorCode`          | JSON-RPC error code of a rejection, if it was an `RpcError`.                |
+| `includer`           | The including block’s miner address. Only when `outcome` is `included`.     |
+| `checks`             | The rule-by-rule report, a list of `RuleCheck`.                             |
+
+Outcomes:
+
+* `accepted`: in the mempool, not yet resolved.
+* `rejected`: validation or the mempool refused it.
+* `included`: landed on chain, whether or not the Frame Transaction itself succeeded. Once set, `included` is never overwritten.
+* `replaced`: set on the old transaction’s record when a newer one takes its slot.
+* `dropped`: the node’s own bundler gave up on an accepted transaction.
+
+A `RuleCheck` has `rule`, `verdict` (`pass`, `fail`, `skipped`), `detail`, and for per-entity rules `frameIndex` and `entity`.
+
+## Lifecycle events
+
+[Section titled “Lifecycle events”](#lifecycle-events)
+
+Events have a `seq` that starts at 1 and grows by 1 per event. `kind` is one of:
+
+| `kind`          | Recorded when                                                       |
+| --------------- | ------------------------------------------------------------------- |
+| `admitted`      | The transaction entered the mempool.                                |
+| `rejected`      | An admission attempt failed. `reason` holds the error.              |
+| `replaced`      | A newer transaction took this one’s slot. Recorded on the old hash. |
+| `statusChanged` | The transaction was submitted or reverted.                          |
+| `dropped`       | The transaction was cancelled.                                      |
+| `included`      | The transaction was found on chain.                                 |
+
+Not every status change produces an event. A change to `Pending` does not.
+
+## Live stream
+
+[Section titled “Live stream”](#live-stream)
+
+The log is also a push stream over the WebSocket RPC. Use `skandha_subscribe` with the event type `explorerEvents`. To resume after a disconnect, keep the highest `seq` and the `bootId`, and subscribe again with `seq` as `sinceSeq`. If `bootId` changed, the node restarted: reload state. If `sinceSeq + 1 < info.oldestSeq`, events were evicted and the client should reload.
+
+## Rule IDs
+
+[Section titled “Rule IDs”](#rule-ids)
+
+The sidecar’s `RuleCheck.rule` is one of these IDs. They are the sidecar’s own and differ from the ERC-8421 rule IDs (TBD). See [Spec and implementation differences](/project/differences/).
+
+Global rules, in order:
+
+| Rule ID           | What it checks                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------- |
+| `gas-limit`       | The sum of all frames’ gas limits is within the per-transaction cap.                |
+| `recent-root`     | Every EIP-8272 recent-root reference is usable.                                     |
+| `prefix`          | The leading frames form a recognized validation prefix.                             |
+| `structure`       | The prefix follows the EIP-8141 structural rules.                                   |
+| `signature`       | Every signature verifies.                                                           |
+| `simulation`      | The traced simulation succeeded.                                                    |
+| `trace-alignment` | The trace lines up with the frames.                                                 |
+| `OP-061`          | No nested `CALL` with non-zero value during validation.                             |
+| `execution`       | The simulation reported no execution error.                                         |
+| `mempool`         | The mempool accepted it: replacement fee rules and reputation or ban checks passed. |
+
+Per-entity rules:
+
+| Rule ID             | What it checks                                             |
+| ------------------- | ---------------------------------------------------------- |
+| `out-of-gas`        | The entity did not run out of gas internally.              |
+| `OP-011`            | The entity used none of the banned opcodes.                |
+| `create`            | No forbidden contract creation.                            |
+| `storage`           | Only storage the entity may access.                        |
+| `COD-010`           | No access to the code of a contract that is not deployed.  |
+| `entrypoint-access` | No read of the code of the EIP-8141 `ENTRY_POINT` address. |
+
+Catch-all: `admission` is a failure that no other rule claimed.
+
+# RPC methods
+
+> JSON-RPC methods exposed by the sidecar and the ethrex fork.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The sidecar exposes JSON-RPC 2.0 over `POST /rpc/` (and WebSocket at the same path). All results except `skandha_config` and `skandha_explorer_*` are hex-encoded.
+
+There is no `eth_sendUserOperation`, `eth_supportedEntryPoints`, `skandha_userOperationStatus` or `skandha_feeHistory`.
+
+## Frame Transaction methods
+
+[Section titled “Frame Transaction methods”](#frame-transaction-methods)
+
+| Method                            | Params                                                                                    | Result                                                                                                                                                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eth_sendFrameTransaction`        | `[tx]`: the full signed transaction in JSON form                                          | The transaction hash. Errors if the transaction fails simulation or the mempool rules. The total frame gas limit is capped by the node’s `userOpGasLimit`.                                                                                              |
+| `eth_estimateFrameTransactionGas` | `[partialTx]`: needs `sender` and `frames`. `signatures`, `fees` and `nonce` are optional | `{ frames: [{execution, state}], cumulativeGasUsed, maxFeePerGas, maxPriorityFeePerGas }`. Validation prefix frames keep their limits. Body frames are simulated with a large placeholder limit and the measured usage is returned with markup applied. |
+| `eth_getFrameTransactionByHash`   | `[hash]`                                                                                  | The mempool entry, or `null` if not in this node’s mempool.                                                                                                                                                                                             |
+| `eth_getFrameTransactionReceipt`  | `[hash]`                                                                                  | `{ status, payer, cumulativeGasUsed, frameReceipts: [{status, gasUsed: {execution, state}, logs}] }`. Errors if the transaction is not mined yet.                                                                                                       |
+| `skandha_frameTransactionStatus`  | `[hash]`                                                                                  | `{ tx, sender, payer, factory?, status, transaction?, reason? }`. See below.                                                                                                                                                                            |
+
+`skandha_frameTransactionStatus` returns `status` as one of `New`, `Pending`, `Submitted`, `OnChain`, `Finalized`, `Cancelled`, `Reverted`. `transaction` appears once submitted. `reason` appears only for `Reverted`. `factory` appears only if the prefix has a `deploy` frame. An unknown hash returns the error “Frame transaction not found”. It is a plain request and response call, not a push.
+
+## Other sidecar methods
+
+[Section titled “Other sidecar methods”](#other-sidecar-methods)
+
+| Method                                     | Result                                                                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `skandha_getGasPrice`                      | `{ maxPriorityFeePerGas, maxFeePerGas }` suggested for this chain.                                                                                     |
+| `skandha_config`                           | Node configuration: chain ID, flags, the entry point sentinel, relayer address, reputation and staking parameters, gas markup settings. Not hexlified. |
+| `skandha_connectedPeers`                   | The connected p2p peers, empty if none.                                                                                                                |
+| `skandha_subscribe`, `skandha_unsubscribe` | WebSocket push subscriptions. See [Subscriptions](/reference/subscriptions/).                                                                          |
+| `skandha_explorer_*`                       | Read-only explorer methods. See [Explorer API](/reference/explorer-api/).                                                                              |
+| `eth_chainId`, `web3_clientVersion`        | Answered locally.                                                                                                                                      |
+
+With `--redirectRpc`, a whitelist of standard read methods is proxied to the execution client, for example `eth_blockNumber`, `eth_getBalance`, `eth_call`, `eth_getTransactionCount`, `eth_getCode`, `eth_getBlockByNumber`, `eth_getTransactionReceipt` and `eth_sendRawTransaction`.
+
+## debug_bundler\_\* admin methods
+
+[Section titled “debug_bundler\_\* admin methods”](#debug_bundler_-admin-methods)
+
+`debug_bundler_dumpMempool`, `dumpMempoolRaw`, `clearState`, `clearMempool`, `clearReputation`, `setReputation`, `dumpReputation`, `setBundlingMode`, `setBundleInterval`, `sendBundleNow`, `setMempool`, `getStakeStatus`, `setPrivilegedRelayTargetBlock`.
+
+These are restricted to requests from localhost, test mode, or an admin key. On the public devnet they are reachable from the internet because the reverse proxy connects from localhost. `debug_bundler_setReputation` takes `[[{ address, opsSeen, opsIncluded }], entryPoint]`.
+
+## ethrex fork methods
+
+[Section titled “ethrex fork methods”](#ethrex-fork-methods)
+
+On the execution client RPC.
+
+### ethrex_simulateFrameTransaction
+
+[Section titled “ethrex_simulateFrameTransaction”](#ethrex_simulateframetransaction)
+
+Dry-runs a Frame Transaction without submitting it: ethrex’s admission checks, followed by a full multi-frame execution.
+
+Params: `[rawTx, block?, options?]`
+
+* `rawTx` is the RLP-encoded type-`0x06` transaction, `0x06 || rlp(fields)`. It is not the JSON form.
+* `block` defaults to `latest`.
+* `options` is `{ "trace": true }` to also return the full ERC-7562 frame trace.
+
+| Result field                                             | Meaning                                                                                                                                                       |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `valid`                                                  | All frame-specific admission gates passed. Necessary but not sufficient for mempool admission.                                                                |
+| `prefixShape`                                            | Recognized validation prefix shape name, or `null`.                                                                                                           |
+| `payer`                                                  | Payer established by the prefix, or `null`.                                                                                                                   |
+| `maxCost`                                                | Maximum cost in wei, hex.                                                                                                                                     |
+| `violation`                                              | Why it is invalid, `null` when `valid`.                                                                                                                       |
+| `gasUsed`, `frames`, `executionStatus`, `executionError` | Execution results, `null` if not executed.                                                                                                                    |
+| `erc7562Trace`                                           | With tracing: one entry per frame with opcode counts, accessed storage and transient-storage slots, `EXTCODE*` accesses, contract sizes and Keccak preimages. |
+| `erc7562TraceError`                                      | Set if tracing was requested and the trace pass failed.                                                                                                       |
+
+### ethrex_submitPrivilegedFrameTransaction
+
+[Section titled “ethrex_submitPrivilegedFrameTransaction”](#ethrex_submitprivilegedframetransaction)
+
+Params: `[rawTx]`. Forces the transaction into the very next payload build, bypassing ethrex’s mempool admission entirely. There is no retry. It is fully unauthenticated, so it is a demo shortcut and not something to copy into a real deployment. The sidecar’s `PrivilegedRelayer` uses it.
+
+### Other changes
+
+[Section titled “Other changes”](#other-changes)
+
+* `eth_sendRawTransaction` accepts type-`0x06` Frame Transactions and applies ethrex’s own (canonical) validation.
+* `eth_getTransactionReceipt` on a Frame Transaction adds a `frameReceipts` array.
+* `debug_trace*` methods accept a `tracer` option. This fork adds `erc7562FrameTracer`, whose output is an array with one entry per frame.
+
+# Subscriptions
+
+> WebSocket subscriptions for pending, submitted and on-chain Frame Transactions.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+`skandha_subscribe` creates a subscription over the WebSocket RPC connection. The sidecar sends data as soon as it occurs, wrapped in a `skandha_subscription` notification.
+
+The event type names (`pendingUserOps`, `submittedUserOps`, `onChainUserOps`) are kept from the original ERC-4337 implementation. Only the payload changed: each event carries `tx` (the full Frame Transaction), `txHash`, and the roles resolved from the validation prefix (`sender`, `payer`, `factory?`).
+
+## Event types
+
+[Section titled “Event types”](#event-types)
+
+| Type               | Meaning                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `pendingUserOps`   | Frame Transactions validated and put in the mempool.                                                                |
+| `submittedUserOps` | Frame Transactions submitted on chain, reverted, or removed from the mempool.                                       |
+| `onChainUserOps`   | Frame Transactions confirmed on chain.                                                                              |
+| `explorerEvents`   | The explorer lifecycle log. Requires `--explorer.enable`. See [Explorer API](/reference/explorer-api/#live-stream). |
+
+## Subscribe
+
+[Section titled “Subscribe”](#subscribe)
+
+```json
+{ "method": "skandha_subscribe", "params": ["pendingUserOps"], "id": 1, "jsonrpc": "2.0" }
+```
+
+The response result is the subscription ID, for example `"0x106eb9867751ff1bf61bad4a80b8b486"`.
+
+## Event
+
+[Section titled “Event”](#event)
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "skandha_subscription",
+  "params": {
+    "subscription": "0x80e0632d2300aa2e1bcdb1e84329963f",
+    "result": {
+      "tx": { "...": "FrameTransaction" },
+      "txHash": "0xf8a5…4c9e",
+      "transaction": "0x3612…9656",
+      "status": "Submitted",
+      "revertReason": null
+    }
+  }
+}
+```
+
+Submitted and on-chain events carry `transaction`, the hash of the on-chain transaction that carried the Frame Transaction. Submitted events also carry `status` and `revertReason`.
+
+## Unsubscribe
+
+[Section titled “Unsubscribe”](#unsubscribe)
+
+```json
+{ "method": "skandha_unsubscribe", "params": ["0xcf47424b5f492abfaa97ca5d4aed1f1d"], "id": 1, "jsonrpc": "2.0" }
+```
+
+The response result is `"ok"`.
+
+# Rules overview
+
+> How the ERC-8421 rules are organized, what the rule types are and in which order a node applies them.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+These pages describe the rules of the **standard Alternative Mempool** from the ERC-8421 draft. Every rule has an ID such as `BUDGET-010`. IDs are the headings on these pages, so you can link to a rule directly, for example `/rules/budget/#budget-010`.
+
+> The reference implementation does not implement ERC-8421 exactly. It follows an earlier ERC-7562-derived draft, and its rule IDs differ (TBD). See [Spec and implementation differences](/project/differences/).
+
+## Rule families
+
+[Section titled “Rule families”](#rule-families)
+
+| Family                     | Topic                                       | Page                                               |
+| -------------------------- | ------------------------------------------- | -------------------------------------------------- |
+| ASSOC                      | Associated storage                          | [Associated storage](/rules/associated-storage/)   |
+| PREFIX                     | Validation prefix and structure             | [Prefix](/rules/prefix/)                           |
+| BUDGET                     | Per-entity validation gas                   | [Budgets](/rules/budget/)                          |
+| SIGNATURE                  | Signature checks                            | [Signatures](/rules/signatures/)                   |
+| OPCODES, CREATION, CALLING | Opcodes, contract creation, calls           | [Opcodes, creation and calls](/rules/opcodes/)     |
+| STORAGE                    | Storage and state access                    | [Storage](/rules/storage/)                         |
+| LOCAL                      | Rules that depend on the node’s own mempool | [Local rules](/rules/local/)                       |
+| STAKING, SOLVENCY          | Stake and payer solvency                    | [Stake and solvency](/rules/staking-and-solvency/) |
+| REPUTATION                 | Reputation limits                           | [Reputation](/rules/reputation/)                   |
+| LIFECYCLE                  | Replacement, eviction, revalidation         | [Lifecycle](/rules/lifecycle/)                     |
+| PROPAGATION                | Gossip behaviour                            | [Propagation](/rules/propagation/)                 |
+
+Constants are listed on [Constants](/rules/constants/).
+
+## Two kinds of rules
+
+[Section titled “Two kinds of rules”](#two-kinds-of-rules)
+
+Mempools are distributed. Each node keeps its own view of the mempool and of participant reputations. That gives two kinds of rules.
+
+* A **network-wide rule** is one whose violation damages the reputation of the peer that sent the transaction into the standard mempool. A peer with critically low standing is treated as a spammer. See [Propagation](/rules/propagation/).
+* A **local rule** depends on a node’s own mempool contents and its local tracking of reputations. Different nodes hold different contents, so no consensus is possible. Peers are never penalized for a local rule violation. Local rules are collected in [Local rules](/rules/local/). All other rules are network-wide.
+
+A violation of any rule results in the transaction being rejected from submission, or dropped from the mempool if it was already there.
+
+## Acceptance algorithm
+
+[Section titled “Acceptance algorithm”](#acceptance-algorithm)
+
+A node applies the rules in this order:
+
+1. Validate the signatures.
+2. Determine the validation prefix and check its structure.
+3. Resolve each entity’s role, address and stake, and check reputation.
+4. Simulate the prefix and trace it, applying the OPCODES, CREATION, CALLING and STORAGE rules to every validation frame.
+5. Check payer solvency and reserve the cost.
+6. Check the local rules and the per-sender limitations.
+7. If the transaction is a replacement, apply the replacement rules.
+8. If every check passes, record the dependency set, admit the transaction and propagate it.
+
+## Execution model
+
+[Section titled “Execution model”](#execution-model)
+
+`VERIFY` frames run in static mode. Non-static `DEFAULT` mode frames in the validation prefix are allowed for two subclasses only: the `deploy` frame and the `pre_verify` frame. Rules that mention writes, contract creation or value calls take effect only in those frames.
+
+# Associated storage (ASSOC)
+
+> Which storage slots count as associated with an address.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Several storage rules grant an entity broader access to storage that is **associated** with it, rather than only to a contract’s own account storage. Associated storage identifies the slots a well-behaved contract is expected to use to track state for a specific address, such as an ERC-20 balance mapping keyed by that address. The contract does not need to declare those slots in advance.
+
+### ASSOC-010
+
+[Section titled “ASSOC-010”](#assoc-010)
+
+A storage slot of any contract is associated with address `A` if the slot’s own value equals `A`.
+
+### ASSOC-020
+
+[Section titled “ASSOC-020”](#assoc-020)
+
+A storage slot of any contract is associated with address `A` if the slot was computed as `keccak256(A || x) + n`, where `x` is a `bytes32` value and `n` is an integer from 0 to 128. This covers the common Solidity mapping and dynamic array layouts keyed or indexed by `A`, together with a fixed run of slots reachable from them.
+
+## How nodes test it
+
+[Section titled “How nodes test it”](#how-nodes-test-it)
+
+A node determines association by testing the slots a validation frame actually accessed, using specialized simulation and tracing interfaces. In the sidecar, those come from a single `ethrex_simulateFrameTransaction` call with tracing enabled.
+
+# Budgets (BUDGET)
+
+> Per-entity validation gas budgets for staked and unstaked entities.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+### BUDGET-010
+
+[Section titled “BUDGET-010”](#budget-010)
+
+A node must track the sum of `limits.execution` **separately per entity**, over that entity’s own validation frames.
+
+* The `pre_verify` frame counts toward the entity of the approving frame it immediately precedes.
+* The intrinsic cost of validating `tx.signatures` counts toward `tx.sender`.
+* For **unstaked entities**, the sum must not exceed `MAX_VERIFY_GAS_PER_ENTITY` (100,000 in the draft).
+* For **staked entities**, the sum must not exceed `MAX_VERIFY_GAS_STAKED_ENTITY` (1,000,000 in the draft).
+
+The landing page shows 250,000 and 2,500,000 for these two budgets (TBD).
+
+## Why a per-entity budget
+
+[Section titled “Why a per-entity budget”](#why-a-per-entity-budget)
+
+EIP-8141 uses a single combined gas budget for the whole validation prefix. That budget cannot be raised for a staked entity without also raising it for every unstaked entity in the same transaction, since the rule sees only one sum.
+
+The Alternative Mempool tracks the sum separately per entity. A staked payer, sender or factory can have a materially higher allowance for more expensive validation logic, such as a signature aggregation check or a Merkle proof check. Every unstaked entity of the transaction stays bound by the lower budget, exactly as if no staked entity were in the transaction.
+
+## No cap on state gas
+
+[Section titled “No cap on state gas”](#no-cap-on-state-gas)
+
+EIP-8141 caps `limits.state` at `MAX_VERIFY_STATE_GAS` across the validation prefix. The standard Alternative Mempool has no such cap. The payer’s solvency check already reserves the cost of every frame’s declared `limits.state`, so a large budget is paid for. The prefix structure already limits where state can be written. A `deploy` frame that needs a large state gas budget for a code deposit can declare it without hitting a mempool-specific limit.
+
+## More nonce keys cost more validation gas
+
+[Section titled “More nonce keys cost more validation gas”](#more-nonce-keys-cost-more-validation-gas)
+
+Observed on the devnet: a `VERIFY` frame with 7 nonce keys ran out of gas at 30,000 and succeeded at 80,000. The headroom under a 100,000 budget shrinks toward the 16-key maximum.
+
+# Constants
+
+> Constants defined by the ERC-8421 draft and the canonical mempool.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+## ERC-8421 (standard Alternative Mempool)
+
+[Section titled “ERC-8421 (standard Alternative Mempool)”](#erc-8421-standard-alternative-mempool)
+
+| Name                                 | Value       | Description                                                                                           |
+| ------------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------- |
+| `MAX_VERIFY_GAS_PER_ENTITY`          | `100_000`   | Maximum execution gas budget for a single unstaked or default-code entity’s validation frames.        |
+| `MAX_VERIFY_GAS_STAKED_ENTITY`       | `1_000_000` | Maximum execution gas budget for a single staked entity’s validation frames.                          |
+| `MIN_UNSTAKE_DELAY`                  | `86400`     | One day. A withdrawal delay long enough to deter most Sybil attacks.                                  |
+| `MIN_STAKE_VALUE`                    | per chain   | A non-trivial but not excessive amount, roughly USD 1000 in the native token.                         |
+| `SAME_NONCE_KEY_MEMPOOL_COUNT`       | `4`         | Maximum pending transactions that select the same `(sender, nonce key)` pair.                         |
+| `SAME_SENDER_MEMPOOL_COUNT`          | `64`        | Maximum pending transactions from one unstaked sender, regardless of how many nonce keys they select. |
+| `SAME_UNSTAKED_ENTITY_MEMPOOL_COUNT` | `10`        | Base number of pending transactions that may reference the same unstaked sponsoring payer.            |
+| `THROTTLED_ENTITY_MEMPOOL_COUNT`     | `4`         | Pending transactions allowed for a throttled entity.                                                  |
+| `THROTTLED_ENTITY_LIVE_BLOCKS`       | `10`        | Blocks a transaction referencing a throttled entity may stay in the mempool.                          |
+| `THROTTLED_ENTITY_BLOCK_COUNT`       | `4`         | Transactions referencing a throttled entity that a node may include in one block it builds.           |
+| `MIN_INCLUSION_RATE_DENOMINATOR`     | `10`        | Denominator in the reputation formula.                                                                |
+| `THROTTLING_SLACK`                   | `10`        | Lets an entity legitimately fail some transactions without being throttled.                           |
+| `BAN_SLACK`                          | `50`        | Lets a throttled entity fail some transactions without being banned.                                  |
+| `MAX_TXS_ALLOWED_UNSTAKED_ENTITY`    | `10000`     | Upper bound on `included` when computing the allowance of an unstaked sponsoring payer.               |
+| `STAKING_REGISTRY_ADDRESS`           | per chain   | Address of the Staking Registry contract.                                                             |
+
+The landing page shows validation gas budgets of 250,000 per unstaked entity and 2,500,000 per staked entity, and a minimal proof check of about 200,000 gas. These do not match the draft’s 100,000 and 1,000,000 (TBD).
+
+## EIP-8141 (canonical public mempool)
+
+[Section titled “EIP-8141 (canonical public mempool)”](#eip-8141-canonical-public-mempool)
+
+| Name                                            | Value     | Description                                                                                 |
+| ----------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `MAX_VERIFY_GAS`                                | `100_000` | Maximum gas a node should spend validating signatures and simulating the validation prefix. |
+| `MAX_VERIFY_STATE_GAS`                          | `500_000` | Maximum state gas that may be budgeted across the validation prefix.                        |
+| `MAX_PENDING_TXS_USING_NON_CANONICAL_PAYMASTER` | `1`       | Maximum pending transactions using any given non-canonical paymaster.                       |
+
+# Replacement, eviction and revalidation (LIFECYCLE)
+
+> How pending transactions are identified, replaced, limited and revalidated.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+### LIFECYCLE-010
+
+[Section titled “LIFECYCLE-010”](#lifecycle-010)
+
+A pending transaction is identified by `(sender, nonce_keys, nonce_seq)`, as defined by EIP-8250. A node may admit a transaction only if its `nonce_seq` is the next **contiguous** sequence value for **each** key in its `nonce_keys`. That is either the key’s on-chain sequence, `current_nonce_seq(sender, key)`, or one more than the `nonce_seq` of a pending transaction of the same sender that selects that key. Forming a nonce gap on any key is not allowed.
+
+### LIFECYCLE-020
+
+[Section titled “LIFECYCLE-020”](#lifecycle-020)
+
+Two transactions of the same sender **conflict** if they have the same `nonce_seq` and their `nonce_keys` share at least one key, because at most one of them can ever be included. The mempool must not hold two conflicting transactions.
+
+A transaction that conflicts with one or more pending transactions is a **replacement** for all of them.
+
+* A replacement must be valid under every rule in this document.
+* A node should accept and propagate it only if it increases both `max_fee_per_gas` and `max_priority_fee_per_gas` by at least 10% over **each** transaction it replaces.
+* A replacement may name a different factory or payer.
+* On accepting a replacement, a node removes every transaction it replaces and evicts every pending transaction of the sender that no longer satisfies LIFECYCLE-010.
+
+### LIFECYCLE-030
+
+[Section titled “LIFECYCLE-030”](#lifecycle-030)
+
+A node must keep at most `SAME_NONCE_KEY_MEMPOOL_COUNT` pending transactions that select any one `(sender, key)` pair. A transaction with several `nonce_keys` counts once against each of its keys.
+
+A node must keep at most `SAME_SENDER_MEMPOOL_COUNT` pending transactions of an unstaked sender, regardless of how many nonce keys they select. A staked sender has no sender-wide limit while `ACTIVE`. [REPUTATION-020](/rules/reputation/#reputation-020) limits it once it is `THROTTLED`.
+
+These limits count only the keys selected by pending transactions. A replacement releases every key that a replaced transaction selected and the replacement does not. For example, replacing a pending transaction with `nonce_keys = [1, 3, 5]` by one with `nonce_keys = [1, 5]` at the same `nonce_seq` releases key `3`.
+
+### LIFECYCLE-040
+
+[Section titled “LIFECYCLE-040”](#lifecycle-040)
+
+When a new block is accepted, a node must remove the transactions the block includes and update payer reservations. It must revalidate every pending transaction that **depends on state the block changed**. This includes at least:
+
+* transactions for the same sender
+* transactions whose recorded storage dependencies changed
+* transactions whose payer’s balance or code changed
+* transactions that reference an entity whose stake status changed
+
+A transaction that no longer satisfies the rules must be evicted.
+
+To keep revalidation cheap, a node should record for each admitted transaction the set of state it depended on: the storage slots read, and the code, balance and nonce of every address whose value the validation used. It should use this set to select the transactions that need revalidation.
+
+## Why conflicts are treated as replacements
+
+[Section titled “Why conflicts are treated as replacements”](#why-conflicts-are-treated-as-replacements)
+
+Treating any two transactions that cannot both be included as a replacement keeps the pending transactions of a sender free of conflicts. A node can then track each key’s pending sequences independently, and a limit on a key counts only the transactions that actually select it.
+
+## Revalidation load
+
+[Section titled “Revalidation load”](#revalidation-load)
+
+A new head can force many revalidations. A node that does not filter the affected transactions exposes itself to a load attack proportional to the size of its mempool.
+
+# Local rules (LOCAL)
+
+> Rules that depend on a node's own mempool contents.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+These rules depend on the other transactions in a node’s own mempool and have no network propagation effects. A node applies them when it admits a transaction. A transaction that violates one is rejected without any reputation change for the peer that sent it.
+
+### LOCAL-010
+
+[Section titled “LOCAL-010”](#local-010)
+
+A transaction must not use as its factory or its sponsoring payer an address that is `tx.sender` of another pending transaction in the mempool. A factory or paymaster contract therefore cannot also serve as an account.
+
+### LOCAL-020
+
+[Section titled “LOCAL-020”](#local-020)
+
+A transaction must not use storage associated with its sender, or with a staked entity, in a contract that is `tx.sender` of another pending transaction in the mempool.
+
+# Opcodes, creation and calls
+
+> OPCODES, CREATION and CALLING rules for validation frames.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Every validation frame is bound by the banned opcodes of EIP-8141’s validation trace rules, except for the frames that PREFIX-100 exempts. The OPCODES section lists only the differences.
+
+## Banned opcodes in the canonical mempool
+
+[Section titled “Banned opcodes in the canonical mempool”](#banned-opcodes-in-the-canonical-mempool)
+
+`GASPRICE`, `BLOCKHASH`, `COINBASE`, `TIMESTAMP`, `NUMBER`, `PREVRANDAO`, `GASLIMIT`, `BASEFEE`, `BLOBBASEFEE`, `SLOTNUM`, `GAS` (except when immediately followed by a `*CALL`), `CREATE`, `CREATE2` and `SETDELEGATE` (except inside the first `deploy` frame), `INVALID`, `SELFDESTRUCT`, `BALANCE`, `SELFBALANCE`, and `SSTORE` (except to the sender’s storage inside the first `deploy` frame).
+
+`TIMESTAMP` is allowed only in the canonical expiry verifier code. The environment opcodes (`TIMESTAMP`, `NUMBER`, `COINBASE`, `GASPRICE` and similar) are banned in **both** the canonical and the standard Alternative Mempool, staked or not.
+
+## Opcodes
+
+[Section titled “Opcodes”](#opcodes)
+
+### OPCODES-010
+
+[Section titled “OPCODES-010”](#opcodes-010)
+
+`BALANCE` (`0x31`) and `SELFBALANCE` (`0x47`) are allowed for a staked entity. They remain banned for every other entity.
+
+### OPCODES-020
+
+[Section titled “OPCODES-020”](#opcodes-020)
+
+`SSTORE` is not banned outright. The [Storage](/rules/storage/) rules decide which frames may write and where.
+
+### OPCODES-030
+
+[Section titled “OPCODES-030”](#opcodes-030)
+
+Any unassigned opcode is blocked.
+
+### OPCODES-040
+
+[Section titled “OPCODES-040”](#opcodes-040)
+
+A revert on “out of gas” is forbidden, because it can leak the gas limit or the call-stack depth.
+
+## Contract creation
+
+[Section titled “Contract creation”](#contract-creation)
+
+### CREATION-010
+
+[Section titled “CREATION-010”](#creation-010)
+
+`CREATE`, `CREATE2` and `SETDELEGATE` (EIP-7819) are allowed only inside the `deploy` frame, and only to install code at `tx.sender`. Any one of these opcodes may be executed at most once, and it must install code for `tx.sender`.
+
+## Calls and code access
+
+[Section titled “Calls and code access”](#calls-and-code-access)
+
+### CALLING-010
+
+[Section titled “CALLING-010”](#calling-010)
+
+Using an address that has no deployed or default code is forbidden.
+
+### CALLING-040
+
+[Section titled “CALLING-040”](#calling-040)
+
+Precompiles that access nothing in the blockchain state or environment are allowed. These include the core precompiles `0x01` to `0x11` and the `P256VERIFY` precompile.
+
+# Validation prefix and structure (PREFIX)
+
+> Rules about the shape and content of the validation prefix.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+### PREFIX-010
+
+[Section titled “PREFIX-010”](#prefix-010)
+
+The validation prefix must match one of these shapes. A transaction whose prefix matches none of them must be rejected.
+
+* `[self_verify]`
+* `[deploy, self_verify]`
+* `[only_verify, pay]`
+* `[deploy, only_verify, pay]`
+
+In every shape, each approving frame (`self_verify`, `only_verify` or `pay`) may be immediately preceded by one `pre_verify` frame (see PREFIX-110). An optional single `expiry_verify` frame is always allowed as the first frame of the prefix.
+
+### PREFIX-020
+
+[Section titled “PREFIX-020”](#prefix-020)
+
+If a `deploy` frame is present, it must be the first frame of the prefix, not counting a leading `expiry_verify` frame. There is at most one `deploy` frame. The `deploy` frame must result in a successful deployment of the `tx.sender` contract.
+
+### PREFIX-040
+
+[Section titled “PREFIX-040”](#prefix-040)
+
+No frame in the validation prefix may carry `ATOMIC_BATCH_FLAG`.
+
+### PREFIX-050
+
+[Section titled “PREFIX-050”](#prefix-050)
+
+No `VERIFY` frame may follow the validation prefix.
+
+### PREFIX-060
+
+[Section titled “PREFIX-060”](#prefix-060)
+
+A transaction must be rejected if any validation frame reverts, or if a `VERIFY` frame exits without its required `APPROVE`.
+
+### PREFIX-080
+
+[Section titled “PREFIX-080”](#prefix-080)
+
+A node must reject or drop a transaction whose `expiry_verify` deadline is earlier than the node’s view of the current block timestamp.
+
+### PREFIX-100
+
+[Section titled “PREFIX-100”](#prefix-100)
+
+These frames are exempt from Alternative Mempool rules: a frame whose target is a default-code account, a canonical paymaster, or the `EXPIRY_VERIFIER` contract. A node may evaluate them directly instead of simulating them. It must still apply the same limits it would apply normally.
+
+### PREFIX-110
+
+[Section titled “PREFIX-110”](#prefix-110)
+
+The target of a `pre_verify` frame must have deployed code.
+
+### PREFIX-120
+
+[Section titled “PREFIX-120”](#prefix-120)
+
+A `DEFAULT`-mode frame in the validation prefix that is neither the `deploy` frame nor a `pre_verify` frame must cause the transaction to be rejected.
+
+## Why pre_verify exists
+
+[Section titled “Why pre_verify exists”](#why-pre_verify-exists)
+
+ERC-4337 validation functions could write storage under the same associated-storage and stake rules that governed reads. One common use is a paymaster that pulls ERC-20 tokens from the sender during validation, so it is reimbursed before it commits to pay. `VERIFY` frames are static, so the same guarantee needs a non-static frame that runs first.
+
+`pre_verify` marks such a frame and binds it to one approving frame. Each write is then attributed to an entity, and the storage and reputation rules apply to writes exactly as they apply to reads.
+
+## Security considerations
+
+[Section titled “Security considerations”](#security-considerations)
+
+* A `pre_verify` frame is called by `ENTRY_POINT` before any `APPROVE` has happened, so nobody has been authorized yet. Its target should check that the transaction’s sender, as reported by `TXPARAM`, is the party whose state it is about to change.
+* A failed `DEFAULT` frame in the validation prefix does not invalidate the transaction automatically. The approving frame must check the `pre_verify` frame’s status. A node cannot check this requirement, so a payer that ignores it bears the loss.
+
+# Propagation (PROPAGATION)
+
+> How nodes handle transactions received from peers.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The wire protocol is out of scope for ERC-8421. The following rules apply to any transport that carries transactions between nodes of the standard mempool.
+
+### PROPAGATION-010
+
+[Section titled “PROPAGATION-010”](#propagation-010)
+
+A transaction is broadcast with two items: the transaction itself, and the block hash against which it was last validated.
+
+### PROPAGATION-020
+
+[Section titled “PROPAGATION-020”](#propagation-020)
+
+A node that receives a transaction from a peer must validate it locally before it propagates it.
+
+### PROPAGATION-030
+
+[Section titled “PROPAGATION-030”](#propagation-030)
+
+If a received transaction fails a static check, such as an invalid encoding, a value below a minimum, or an outdated block hash, the node drops it and keeps the connection.
+
+### PROPAGATION-040
+
+[Section titled “PROPAGATION-040”](#propagation-040)
+
+A node silently drops a transaction that conflicts (see LIFECYCLE-020) with a transaction recently included in a block. This is almost certainly a network race. It causes no reputation change.
+
+### PROPAGATION-050
+
+[Section titled “PROPAGATION-050”](#propagation-050)
+
+If a received transaction fails against the current block, the node should retry validation against the block named in the transaction’s message. If it succeeds, the node silently drops the transaction and keeps the connection. If it fails, that indicates a peer propagating a known invalid or incompatible payload. The node should mark the sending peer as a **spammer**, disconnect from it, or block it permanently.
+
+## The sidecar’s wire format
+
+[Section titled “The sidecar’s wire format”](#the-sidecars-wire-format)
+
+The sidecar gossips over libp2p. See [P2P mempool](/guides/p2p/) for the topic, req/resp protocols and the wire format version.
+
+# Reputation (REPUTATION)
+
+> Rules for banned, throttled and unstaked entities and for blame attribution.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+The calculation of reputation states is explained in [Reputation](/concepts/reputation/). The rules below apply to all staked entities and to unstaked sponsoring payers, unless stated otherwise.
+
+## General rules
+
+[Section titled “General rules”](#general-rules)
+
+### REPUTATION-010
+
+[Section titled “REPUTATION-010”](#reputation-010)
+
+A `BANNED` address is not allowed into the mempool. Every pending transaction that references it is removed.
+
+### REPUTATION-020
+
+[Section titled “REPUTATION-020”](#reputation-020)
+
+A `THROTTLED` address is limited to `THROTTLED_ENTITY_MEMPOOL_COUNT` entries in the mempool, to `THROTTLED_ENTITY_BLOCK_COUNT` transactions in a block the node builds, and to `THROTTLED_ENTITY_LIVE_BLOCKS` blocks of residency in the mempool.
+
+### REPUTATION-040
+
+[Section titled “REPUTATION-040”](#reputation-040)
+
+Admitting a replacement is not a new occurrence of `seen` for any unchanged entity. If the replacement changes the `payer`, the `factory`, or both, the node decrements each changed role’s old address’s `seen` by 1 and increments its new address’s `seen` by 1, atomically with the replacement.
+
+## Unstaked entities
+
+[Section titled “Unstaked entities”](#unstaked-entities)
+
+### REPUTATION-210
+
+[Section titled “REPUTATION-210”](#reputation-210)
+
+A `THROTTLED` sender is limited to `THROTTLED_ENTITY_MEMPOOL_COUNT` pending transactions in total, regardless of how many nonce keys it uses.
+
+### REPUTATION-220
+
+[Section titled “REPUTATION-220”](#reputation-220)
+
+An unstaked sponsoring payer that is neither `THROTTLED` nor `BANNED` may have at most `opsAllowed` pending transactions in the mempool. This replaces the canonical mempool’s cap of one pending transaction per non-canonical paymaster. It lets an unstaked payer with a good record carry more.
+
+## Blame attribution
+
+[Section titled “Blame attribution”](#blame-attribution)
+
+### REPUTATION-310
+
+[Section titled “REPUTATION-310”](#reputation-310)
+
+If a transaction fails revalidation because of the `factory` or the `sender`, the sponsoring `payer`’s `seen` is decremented by 1. A payer must not lose reputation because of another entity’s failure.
+
+### REPUTATION-320
+
+[Section titled “REPUTATION-320”](#reputation-320)
+
+If a staked `factory` is used and the `sender`’s validation frame fails, the factory’s `seen` is not decremented under REPUTATION-310. It absorbs the failure in its own inclusion rate, exactly as if its own frame had failed.
+
+### REPUTATION-330
+
+[Section titled “REPUTATION-330”](#reputation-330)
+
+If a staked `sender` is used, its reputation is affected by failures of all other entities of the transaction, even if those entities are staked.
+
+# Signatures (SIGNATURE)
+
+> How nodes validate transaction signatures before simulation.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+### SIGNATURE-010
+
+[Section titled “SIGNATURE-010”](#signature-010)
+
+Before simulating any frame, a node must validate every protocol-validated signature (`SECP256K1`, and `P256` per EIP-7951) against its own signed message. The signed message is the transaction’s signature hash when `msg` is empty, or the explicit digest that `msg` carries otherwise. A transaction with any invalid signature must be rejected.
+
+## ARBITRARY signatures
+
+[Section titled “ARBITRARY signatures”](#arbitrary-signatures)
+
+The protocol does not validate `ARBITRARY` signatures. A transaction that carries one is only as trustworthy as the frame that inspects it.
+
+## Approval covers all following SENDER frames
+
+[Section titled “Approval covers all following SENDER frames”](#approval-covers-all-following-sender-frames)
+
+`sender_approved` is a single transaction-scoped flag. Once it is set, every `SENDER` frame in the transaction executes as `tx.sender`, not only the frame the approving code inspected.
+
+Wallet code that approves execution should bind its approval to the whole frame list, for example by verifying a signature over the canonical signature hash, which commits to every frame. A signature over an explicit digest that does not commit to the frame list authorizes an open-ended set of `SENDER` frames.
+
+# Stake and solvency (STAKING, SOLVENCY)
+
+> Definition of a staked entity and the payer solvency reservation rules.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+## Stake
+
+[Section titled “Stake”](#stake)
+
+There is no penalization mechanism in the Alternative Mempool protocol and stake is never slashed. It exists only as a configurable mechanism for Sybil attack prevention.
+
+### STAKING-010
+
+[Section titled “STAKING-010”](#staking-010)
+
+An entity is staked if the Staking Registry reports for it a stake of at least `MIN_STAKE_VALUE` and an unstake delay of at least `MIN_UNSTAKE_DELAY`, and withdrawal has not been initiated.
+
+## Payer solvency
+
+[Section titled “Payer solvency”](#payer-solvency)
+
+### SOLVENCY-010
+
+[Section titled “SOLVENCY-010”](#solvency-010)
+
+For every payer, including the sender when it pays for itself, a node must track `reserved_pending_cost(payer)`: the sum of the maximum costs of every pending transaction in its mempool that names this payer. A node must reject a transaction if `available_balance(payer)` is less than its maximum cost, where:
+
+```plaintext
+available_balance(payer) = balance(payer) - reserved_pending_cost(payer)
+```
+
+### SOLVENCY-020
+
+[Section titled “SOLVENCY-020”](#solvency-020)
+
+For a canonical paymaster, `available_balance` additionally subtracts `pending_withdrawal_amount(paymaster)`, the amount of any delayed withdrawal currently pending in that paymaster.
+
+### SOLVENCY-030
+
+[Section titled “SOLVENCY-030”](#solvency-030)
+
+On admission a node increases `reserved_pending_cost` by the transaction’s maximum cost. It decreases it on eviction, replacement, inclusion and removal by reorg. When a replacement changes the payer, the node moves the reservation to the new payer atomically with the replacement.
+
+## Default-code payers
+
+[Section titled “Default-code payers”](#default-code-payers)
+
+A payer with no code is bounded only by the solvency rules. A sponsor that moves its balance elsewhere between admission and inclusion invalidates every pending transaction it sponsors, up to the balance it appeared to hold. Reservation limits the exposure to the payer’s balance at admission time and does not remove it.
+
+# Storage and state access (STORAGE)
+
+> Which storage an entity may read or write during validation.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+Storage access by `SLOAD`, `SSTORE`, `TLOAD` and `TSTORE` is restricted. Writes are possible only in `deploy` and `pre_verify` frames. Transient storage (EIP-1153) is treated exactly like persistent storage.
+
+### STORAGE-000
+
+[Section titled “STORAGE-000”](#storage-000)
+
+Access to storage is always restricted unless one of the following rules allows it.
+
+### STORAGE-010
+
+[Section titled “STORAGE-010”](#storage-010)
+
+Access to `tx.sender`’s own storage is always allowed.
+
+### STORAGE-021
+
+[Section titled “STORAGE-021”](#storage-021)
+
+Access to storage associated with `tx.sender`, in an external contract that is not an entity of the transaction, is allowed when the sender’s account already exists, meaning the transaction has no `deploy` frame.
+
+### STORAGE-022
+
+[Section titled “STORAGE-022”](#storage-022)
+
+The same access is allowed when the transaction has a `deploy` frame and the factory is a staked entity.
+
+### STORAGE-031
+
+[Section titled “STORAGE-031”](#storage-031)
+
+A staked entity may access its own storage.
+
+### STORAGE-032
+
+[Section titled “STORAGE-032”](#storage-032)
+
+A staked entity has read-only access to any storage in a contract that is not an entity of the transaction.
+
+### STORAGE-033
+
+[Section titled “STORAGE-033”](#storage-033)
+
+A staked entity has write access to slots associated with the entity address in any contract that is not an entity of the transaction.
+
+## Summary
+
+[Section titled “Summary”](#summary)
+
+| Who                        | Own storage | Slots associated with the sender, in other contracts                    | Any storage in other contracts | Slots associated with itself, in other contracts |
+| -------------------------- | ----------- | ----------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------ |
+| Sender                     | Yes (010)   | Yes if the account exists (021), or staked factory when deploying (022) | No                             | No                                               |
+| Staked entity              | Yes (031)   | As above                                                                | Read-only (032)                | Read and write (033)                             |
+| Unstaked non-sender entity | No          | No                                                                      | No                             | No                                               |
+
+Canonical mempool, by contrast: only the sender’s own storage, plus the code of other contracts it calls.
+
+## Examples from the workshop
+
+[Section titled “Examples from the workshop”](#examples-from-the-workshop)
+
+A wallet that reads another contract’s storage during validation is rejected by the canonical mempool and by the standard Alternative Mempool while unstaked. Once the entity is staked, the standard Alternative Mempool admits it, and the canonical mempool still rejects it. See [Quickstart](/guides/quickstart/).
+
+# Glossary
+
+> Terms used throughout the Alternative Mempools documentation.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+| Term                             | Meaning                                                                                                                                                                                                            |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Frame Transaction**            | The EIP-8141 transaction type (type `0x06`). A list of frames executed in order.                                                                                                                                   |
+| **Frame**                        | One step of a Frame Transaction, with a mode (`DEFAULT`, `VERIFY` or `SENDER`), flags, a target, gas limits, a value and data.                                                                                     |
+| **Validation prefix**            | The shortest prefix of frames whose successful execution sets the `payer`. Everything after it is the **execution body**.                                                                                          |
+| **Validation frame**             | A frame inside the validation prefix.                                                                                                                                                                              |
+| **Frame subclass**               | A role label for a validation frame: `self_verify`, `only_verify`, `pay`, `expiry_verify`, `deploy`, and `pre_verify` (added by ERC-8421). See [Frame subclasses](/concepts/frame-transactions/#frame-subclasses). |
+| **Entity**                       | A contract that a validation frame executes directly: the **sender**, the **payer** or the **factory**.                                                                                                            |
+| **Default-code entity**          | An entity with empty code, which runs EIP-8141’s default code. Never staked and exempt from opcode, call and storage rules.                                                                                        |
+| **Staked entity**                | An entity with at least `MIN_STAKE_VALUE` staked, an unstake delay of at least `MIN_UNSTAKE_DELAY`, and no withdrawal in progress.                                                                                 |
+| **Associated storage**           | Storage slots a well-behaved contract uses to track state for a specific address. See [Associated storage](/rules/associated-storage/).                                                                            |
+| **Canonical paymaster**          | A paymaster whose runtime code exactly matches the implementation defined by EIP-8141.                                                                                                                             |
+| **Canonical public mempool**     | The public mempool defined by EIP-8141.                                                                                                                                                                            |
+| **Standard Alternative Mempool** | The default ruleset of ERC-8421.                                                                                                                                                                                   |
+| **Custom Alternative Mempool**   | A ruleset defined by a third-party operator and identified by its own topic.                                                                                                                                       |
+| **Network-wide rule**            | A rule whose violation damages the reputation of the peer that sent the transaction.                                                                                                                               |
+| **Local rule**                   | A rule that depends on one node’s own mempool contents. Violating it never penalizes a peer.                                                                                                                       |
+| **Admission validation**         | The simulation a node performs before it first accepts a transaction.                                                                                                                                              |
+| **Revalidation**                 | A re-simulation of a pending transaction against a newer head.                                                                                                                                                     |
+| **Spammer**                      | A peer that sends many transactions that were never valid.                                                                                                                                                         |
+| **Mass invalidation attack**     | Many transactions pass admission and propagate, then later become invalid together.                                                                                                                                |
+| **`seen` / `included`**          | Per-entity counters used by reputation. See [Reputation](/concepts/reputation/).                                                                                                                                   |
+| **Staking Registry**             | The on-chain contract that records stake. Its interface is `IStakingRegistry`.                                                                                                                                     |
+| **Sidecar**                      | The reference mempool node, a TypeScript fork of Skandha. See [Run the sidecar](/guides/run-the-sidecar/).                                                                                                         |
+
+# What are Alternative Mempools
+
+> The problem Alternative Mempools solve and how they relate to the canonical mempool of EIP-8141.
+
+> Disclaimer: Content created from source code using generative AI. Contact us for clarifications or if you find mistakes in this document.
+
+## The short version
+
+[Section titled “The short version”](#the-short-version)
+
+[EIP-8141](https://eips.ethereum.org/EIPS/eip-8141) introduces **Frame Transactions**. A Frame Transaction replaces the hard-coded signature check with EVM code. That code runs in the **validation prefix**, and a node must run it before it may relay the transaction.
+
+The public (canonical) mempool defined by EIP-8141 is deliberately narrow. It rejects almost everything that needs real validation logic, such as shared state, balance checks or an expensive signature scheme.
+
+**Alternative Mempools** are rule sets that admit more. [ERC-8421](https://ethereum-magicians.org/t/erc-8421-frame-transaction-alternative-mempools/29800) defines the framework and a default rule set, the **standard Alternative Mempool**. Instead of banning whole features, it prices abuse with **stake** and **reputation**.
+
+Mempool rules need no consensus change. Anyone can run an Alternative Mempool today.
+
+## Why the canonical mempool is strict
+
+[Section titled “Why the canonical mempool is strict”](#why-the-canonical-mempool-is-strict)
+
+A node that relays a Frame Transaction first executes its validation prefix. Nobody pays the node for that work. If the prefix reads state that anyone can change, one cheap write can invalidate thousands of pending transactions at once. This is the **mass invalidation attack**, and every mempool rule exists to bound it.
+
+A transaction that fails admission and never enters the mempool is not an attack. Nodes apply ordinary spam measures for that. The attack that matters is one where many transactions pass admission, propagate through the network, and later become invalid.
+
+## Three tools instead of a ban
+
+[Section titled “Three tools instead of a ban”](#three-tools-instead-of-a-ban)
+
+| Tool           | What it does                                                                                                                                                         |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Stake**      | Creating an on-chain entity is free. A stake of roughly USD 1000 with a one-day unstake delay gives it a price. The stake is never slashed. The lock-up is the cost. |
+| **Reputation** | Each node counts how often an entity’s transactions are seen and how often they are included. Entities that cause invalidations are throttled, then banned.          |
+| **Tracing**    | Nodes trace the validation simulation and check which storage slots were touched. Slots keyed by the sender’s address count as the sender’s own.                     |
+
+## Three kinds of mempool
+
+[Section titled “Three kinds of mempool”](#three-kinds-of-mempool)
+
+1. The **canonical public mempool**, defined by EIP-8141. Strictest rules. No stake, no reputation.
+2. The **standard Alternative Mempool**, defined by ERC-8421. A permissionless public ruleset that is less restrictive.
+3. **Custom Alternative Mempools**, defined by third-party operators with their own rules.
+
+See [Mempool types](/concepts/mempool-types/) for a comparison, and [Choosing a mempool](/guides/choosing-a-mempool/) to decide which one your contract needs.
+
+## Status
+
+[Section titled “Status”](#status)
+
+ERC-8421 is a **Draft**. Rules and constants in these docs follow the draft and may change. Places where these docs, the landing page, the spec or the reference implementation disagree are marked **(TBD)**.

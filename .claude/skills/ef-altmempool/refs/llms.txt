@@ -1,0 +1,13 @@
+# Alternative Mempools
+
+> Documentation for Alternative Mempools for EIP-8141 Frame Transactions.
+
+## Documentation Sets
+
+- [Abridged documentation](https://docs.altmempool.wtf/llms-small.txt): a compact version of the documentation for Alternative Mempools, with non-essential content removed
+- [Complete documentation](https://docs.altmempool.wtf/llms-full.txt): the full documentation for Alternative Mempools
+
+## Notes
+
+- The complete documentation includes all content from the official documentation
+- The content is automatically generated from the same source as the official documentation

@@ -1,0 +1,1 @@
+source: https://github.com/whitechain-labs/skills/tree/76d88a68350a23a22efb62110aa1874428a36c11/whitechain-dev (copied 2026-11-05; equivalent to: npx skills add whitechain-labs/skills --skill whitechain-dev)

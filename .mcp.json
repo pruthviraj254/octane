@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "whitechain-docs": {
+      "type": "http",
+      "url": "https://docs.whitechain.io/mcp"
+    }
+  }
+}
