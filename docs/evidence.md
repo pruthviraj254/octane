@@ -18,6 +18,8 @@ Real results only: transaction links, admission reports, measured gas and latenc
 
 **AI agent paying with zero WBT (`mcp__octane` tools, Claude Haiku):** told to pay 3 contributors 5 USDT each. It read the market, chose nothing by hand, and three payments settled through the cheapest maker: [1](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c), [2](https://explorer.testnet.whitechain.io/tx/0x69ac0adafb926640950d87aa2be7665d42b0a985e33c78edaf859966518e489e), [3](https://explorer.testnet.whitechain.io/tx/0x6bb413f7960ddfdc5f902cee8efc4463778c26fe00444a03f2b880b4b4cff400). Fees 0.066729, 0.066729 and 0.067334 USDT. Agent run cost $0.0088. The agent's WBT balance and transaction count stayed at 0.
 
+**Person paying from the wallet in a real browser:** typed "Pay Rahul 0.5 USDT", confirmed, and got a [receipt](https://explorer.testnet.whitechain.io/tx/0x2456a582f275750a52e5dde74d8dd4112b06d2d03743304fa27af078e7ea4270). The embedded wallet showed 0 gas tokens and 0 transactions sent.
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.

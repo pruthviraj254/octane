@@ -169,6 +169,9 @@ export async function payOnEfDevnet(
   );
   const expected = frameTxHash(tx);
   await sendToAltMempool(tx);
+  // Admission isn't settlement. Only a successful receipt means the payment happened.
+  const receipt = await efPublicClient().waitForTransactionReceipt({ hash: expected, timeout: 60_000 });
+  if (receipt.status !== "success") throw new Error(`the transaction reverted: ${expected}`);
   return {
     chain: "ef-devnet",
     txHash: expected,
