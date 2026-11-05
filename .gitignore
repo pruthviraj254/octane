@@ -1,0 +1,24 @@
+# Secrets: never commit keys
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.workshop-state.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node / Next.js
+node_modules/
+.next/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Foundry
+contracts/out/
+contracts/cache/
+
+# OS
+.DS_Store
