@@ -1,6 +1,11 @@
 import { execFile } from "node:child_process";
 import { tmpdir } from "node:os";
 
+/** The only variables the child sees, so no key in this process's environment can reach it. */
+function childEnv(): NodeJS.ProcessEnv {
+  return Object.fromEntries(["PATH", "HOME", "USER"].map((name) => [name, process.env[name]])) as NodeJS.ProcessEnv;
+}
+
 export interface LlmClient {
   complete(system: string, prompt: string): Promise<string>;
 }
@@ -36,7 +41,7 @@ export function claudeCli(model: string, timeoutMs = 20_000): LlmClient {
             cwd: tmpdir(),
             timeout: timeoutMs,
             maxBuffer: 1_000_000,
-            env: { PATH: process.env.PATH, HOME: process.env.HOME, USER: process.env.USER } as NodeJS.ProcessEnv,
+            env: childEnv(),
           },
           (error, stdout) => {
             if (error) return reject(new Error("claude CLI failed"));
