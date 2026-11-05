@@ -1,3 +1,4 @@
+export * from "./auction.ts";
 export * from "./arkiv/board.ts";
 export * from "./arkiv/client.ts";
 export * from "./arkiv/schema.ts";

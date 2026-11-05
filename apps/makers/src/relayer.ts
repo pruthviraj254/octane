@@ -18,13 +18,15 @@ export interface RelayerDeps extends WhitechainClients {
   relay: Address;
   maker: Account;
   journal: Journal;
+  /** Called with the quote hash of each settled job. */
+  onRelayed?: (quoteHash: string) => void;
 }
 
 class JobRefused extends Error {}
 
 /** Takes signed jobs from payers, checks them, and settles them with the maker's own WBT. */
 export function startRelayer(deps: RelayerDeps) {
-  const { client, wallet, relay, maker, journal, port } = deps;
+  const { client, wallet, relay, maker, journal, port, onRelayed } = deps;
   const shield = new Shield();
   // Transactions from one wallet go out one at a time.
   let queue: Promise<unknown> = Promise.resolve();
@@ -112,6 +114,7 @@ export function startRelayer(deps: RelayerDeps) {
             fee: job.quote.fee,
             merchantPays: Boolean(job.optIn),
           });
+          onRelayed?.(hashQuote(job.quote));
           reply(200, { txHash, explorerUrl });
         } catch (error) {
           const refused = error instanceof JobRefused;

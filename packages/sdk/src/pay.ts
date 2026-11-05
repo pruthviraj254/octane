@@ -10,6 +10,8 @@ import {
 } from "viem";
 import { fetchBoard, fetchMakerProfile, type BoardQuote } from "./arkiv/board.ts";
 import type { ArkivReader } from "./arkiv/client.ts";
+import type { ArkivWriter } from "./arkiv/writer.ts";
+import { bidQuoteHash, fetchBids, postRequest, recordWinner, type Bid } from "./auction.ts";
 import { submitRelayJob } from "./jobs.ts";
 import { EF_USDC, WHITECHAIN_USDT, efDevnet, explorerTx, whitechainSepolia } from "./networks.ts";
 import { buildLayout1, frameTxHash, sendToAltMempool, signFrameTx, usdcTransferCall } from "./pathA.ts";
@@ -143,6 +145,56 @@ export async function payOnWhitechain(
     }
   }
   throw new Error(`no maker delivered. ${failures.join("; ")}`);
+}
+
+/**
+ * Runs a gas auction on Arkiv: post a request, wait for makers' bids, take the cheapest bid from
+ * a reliable maker, and settle every job with that maker. Whitechain only for now.
+ */
+export async function runAuction(
+  market: MarketConfig,
+  args: {
+    writer: ArkivWriter;
+    payer: LocalAccount;
+    jobs: readonly { to: Address; amount: bigint }[];
+    maxFee: bigint;
+    avoid?: readonly Address[];
+  },
+): Promise<{ requestKey: Hex; bids: Bid[]; winner: Bid; payments: PaymentResult[] }> {
+  const posted = await postRequest(args.writer, {
+    chainId: CHAINS.whitechain.chainId,
+    payer: args.payer.address,
+    maxFee: args.maxFee,
+    jobs: args.jobs.map((job) => ({ to: job.to, amount: job.amount.toString() })),
+  });
+
+  const closes = Number(posted.deadline) * 1000;
+  await new Promise((resolve) => setTimeout(resolve, Math.max(closes - Date.now(), 0)));
+
+  const isRelay = (settlement: Address) => isAddressEqual(settlement, market.relay);
+  const bids = await fetchBids(market.reader, posted.key, isRelay);
+  const avoided = (maker: Address) => (args.avoid ?? []).some((address) => isAddressEqual(address, maker));
+  const winner = bids.find((bid) => bid.quote.fee <= args.maxFee && !avoided(bid.maker));
+  if (!winner) throw new Error(bids.length === 0 ? "no maker bid in time" : "no acceptable bid");
+
+  await recordWinner(args.writer, posted.key, winner.maker);
+
+  const payments: PaymentResult[] = [];
+  for (const job of args.jobs) {
+    const payment = buildPayment({ quote: winner.quote, payer: args.payer.address, merchant: job.to, amount: job.amount });
+    const authSig = await signPaymentAuth(args.payer, winner.quote, payment);
+    const entry: BoardQuote = {
+      key: winner.key,
+      quote: winner.quote,
+      sig: winner.sig,
+      quoteHash: bidQuoteHash(winner),
+      style: winner.style,
+      seq: 0n,
+      expiresAt: 0n,
+    };
+    payments.push(await settleViaRelayer(market, entry, { quote: winner.quote, quoteSig: winner.sig, payment, authSig }));
+  }
+  return { requestKey: posted.key, bids, winner, payments };
 }
 
 /** Pays on the EF devnet with a frame transaction: the sender signs, and the maker's clone pays the gas. */

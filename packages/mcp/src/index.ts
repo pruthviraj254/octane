@@ -3,14 +3,17 @@ import { parseEnv } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
+  ArkivWriter,
   CHAINS,
   arkivReader,
+  arkivWallet,
   explorerTx,
   fetchFills,
   getQuotes,
   payOnEfDevnet,
   payOnWhitechain,
   redactAccessKey,
+  runAuction,
   resolveIdentity,
   type Chain,
   type MarketConfig,
@@ -205,10 +208,47 @@ server.registerTool(
 server.registerTool(
   "post_gas_request",
   {
-    description: "Posts a gas auction request for a large batch job. Not available yet.",
-    inputSchema: { chain: chainInput, jobs: z.number().int().positive(), maxFee: z.string() },
+    description:
+      "Runs a gas auction on Arkiv for several payments on Whitechain: posts the job, waits about 15 seconds for AI makers to bid, takes the cheapest reliable bid, and settles every payment with that maker.",
+    inputSchema: {
+      payments: z
+        .array(
+          z.object({
+            to: z.string().describe("Recipient address"),
+            amount: z.string().regex(/^\d+(\.\d{1,6})?$/).describe("Amount in whole USDT"),
+          }),
+        )
+        .min(1)
+        .max(10),
+      maxFee: z.string().regex(/^\d+(\.\d{1,6})?$/).optional().describe("Highest fee per payment, in USDT"),
+    },
   },
-  async () => failure(new Error("auctions aren't available yet; use send_sponsored")),
+  async ({ payments, maxFee }) => {
+    try {
+      const jobs = payments.map(({ to, amount }) => {
+        if (!isAddress(to)) throw new Error(`"${to}" isn't an address`);
+        return { to, amount: parseUnits(amount, decimals) };
+      });
+      const total = jobs.reduce((sum, job) => sum + job.amount, 0n);
+      caps.check(total);
+
+      const auction = await runAuction(market, {
+        writer: new ArkivWriter(market.reader, arkivWallet(setting("ARKIV_ACCESS_KEY"), agent), agent.address),
+        payer: agent,
+        jobs,
+        maxFee: maxFee ? parseUnits(maxFee, decimals) : caps.maxFee,
+      });
+      caps.record(total + auction.winner.quote.fee * BigInt(jobs.length));
+      return text({
+        request: auction.requestKey,
+        bids: auction.bids.map((bid) => ({ maker: bid.style, fee: `${formatUnits(bid.quote.fee, decimals)} USDT` })),
+        winner: auction.winner.style,
+        payments: auction.payments.map((payment) => payment.explorerUrl),
+      });
+    } catch (error) {
+      return failure(error);
+    }
+  },
 );
 
 // stdout carries the protocol, so anything else goes to stderr.

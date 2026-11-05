@@ -10,6 +10,9 @@ import {
   assertUsdtDomain,
   efDevnet,
   fetchMakerProfile,
+  fetchOpenRequests,
+  hashQuote,
+  placeBid,
   redactAccessKey,
   signQuote,
   whitechainSepolia,
@@ -25,6 +28,7 @@ import {
   MAKERS,
   MAX_GAS,
   MIN_CLONE_BALANCE,
+  MIN_FEE,
   MIN_INVENTORY_WBT,
   PATH_A_FEE,
   PATH_A_MAX_GAS,
@@ -274,12 +278,59 @@ const server = startRelayer({
   client,
   wallet,
   journal,
+  onRelayed: (quoteHash) => {
+    const request = auctionQuotes.get(quoteHash);
+    if (!request) return;
+    if (!auctionsWon.has(request)) {
+      auctionsWon.add(request);
+      journal.write("auction-won", { request });
+    }
+    journal.write("auction-settled", { request, quoteHash });
+  },
 });
 process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 
 journal.write("started", { address: account.address, endpoint, spread: config.spread });
 watchClone();
+
+// Auctions: bid a little under the board price, because a batch is guaranteed work.
+const BID_DISCOUNT_BPS = 9_500n;
+const BID_POLL_MS = 3_000;
+const bidsPlaced = new Set<string>();
+const auctionQuotes = new Map<string, string>();
+const auctionsWon = new Set<string>();
+
+async function bidOnAuctions(): Promise<void> {
+  const market = lastMarket?.market;
+  if (!market || regime.name === "shock" || market.wbtBalance < MIN_INVENTORY_WBT) return;
+
+  for (const request of await fetchOpenRequests(reader, BigInt(whitechainSepolia.id))) {
+    if (bidsPlaced.has(request.key)) continue;
+    bidsPlaced.add(request.key);
+
+    const discounted = (priceFee(config!, market, regime.bufferBps) * BID_DISCOUNT_BPS) / 10_000n;
+    const fee = discounted < MIN_FEE ? MIN_FEE : discounted;
+    if (fee > request.maxFee) {
+      journal.write("auction-passed", { request: request.key, fee, maxFee: request.maxFee });
+      continue;
+    }
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const quote: Quote = {
+      maker: account.address,
+      chainId: request.chainId,
+      settlement: relay,
+      token: WHITECHAIN_USDT,
+      maxGas: MAX_GAS,
+      fee,
+      validUntil: now + QUOTE_VALIDITY_SECONDS,
+      nonce: now,
+    };
+    const result = await placeBid(writer, { request, quote, sig: await signQuote(account, quote), style: config!.id });
+    auctionQuotes.set(hashQuote(quote), request.key);
+    journal.write("bid", { request: request.key, fee, jobs: request.jobs.length, tx: result.status === "sent" ? result.txHash : undefined });
+  }
+}
 
 const publisher = new JournalPublisher(
   account.address,
@@ -291,6 +342,17 @@ const publisher = new JournalPublisher(
   setting("SWARM_BEE_URL"),
   setting("SWARM_BATCH_ID"),
 );
+
+void (async () => {
+  while (!stopping) {
+    try {
+      await bidOnAuctions();
+    } catch (error) {
+      journal.write("bid-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
+    }
+    await new Promise((resolve) => setTimeout(resolve, BID_POLL_MS));
+  }
+})();
 
 // Journals go to Swarm every few minutes, beside the quote loop.
 void (async () => {
