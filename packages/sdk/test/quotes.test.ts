@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { keccak256, toBytes, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it } from "vitest";
-import { hashQuote, isSignedByMaker, signQuote, type Quote } from "../src/index.js";
-import { buildQuoteFixture, fixturePath, testQuote, testSigner } from "./quote-fixture.js";
+import { hashQuote, isSignedByMaker, signQuote, type Quote } from "../src/index.ts";
+import { buildQuoteFixture, fixturePath, testQuote, testSigner } from "./quote-fixture.ts";
 
 const N = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 

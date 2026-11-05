@@ -1,7 +1,7 @@
 import type { ExecuteBatchParameters } from "@arkiv-network/sdk";
 import type { Address, Hash } from "viem";
 import { getGasPrice } from "viem/actions";
-import type { ArkivReader, ArkivWallet } from "./client.js";
+import type { ArkivReader, ArkivWallet } from "./client.ts";
 
 type Batch = Parameters<ArkivWallet["executeBatch"]>[0];
 

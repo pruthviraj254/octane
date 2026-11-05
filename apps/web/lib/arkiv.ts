@@ -9,9 +9,9 @@ export function getReader(): ArkivReader {
   return reader;
 }
 
-export const RELAY = (process.env.NEXT_PUBLIC_OCTANE_RELAY ?? "") as Address;
+const relay = process.env.NEXT_PUBLIC_OCTANE_RELAY;
 
 /** A fake maker could name its own contract, so only the deployed relay counts. */
 export function isTrustedSettlement(settlement: Address): boolean {
-  return RELAY !== "" && isAddressEqual(settlement, RELAY);
+  return Boolean(relay) && isAddressEqual(settlement, relay as Address);
 }

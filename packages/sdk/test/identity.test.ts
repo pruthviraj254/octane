@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { explorerTx, resolveIdentity } from "../src/index.js";
+import { explorerTx, resolveIdentity } from "../src/index.ts";
 
 describe("resolveIdentity", () => {
   it("normalises an address and shortens the label", async () => {

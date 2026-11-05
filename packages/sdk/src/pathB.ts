@@ -12,8 +12,8 @@ import {
   type LocalAccount,
   type PublicClient,
 } from "viem";
-import { WHITECHAIN_USDT } from "./networks.js";
-import { QUOTE_DOMAIN_NAME, QUOTE_DOMAIN_VERSION, hashQuote, type Quote } from "./quotes.js";
+import { WHITECHAIN_USDT } from "./networks.ts";
+import { QUOTE_DOMAIN_NAME, QUOTE_DOMAIN_VERSION, hashQuote, type Quote } from "./quotes.ts";
 
 /** The test USDT has no `eip712Domain()`, so this comes from its verified source. */
 export const USDT_DOMAIN = {

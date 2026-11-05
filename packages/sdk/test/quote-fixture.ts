@@ -7,8 +7,8 @@ import {
   quoteStructHash,
   signQuote,
   type Quote,
-} from "../src/quotes.js";
-import { bindingNonce, buildPayment, merchantOptInDigest } from "../src/pathB.js";
+} from "../src/quotes.ts";
+import { bindingNonce, buildPayment, merchantOptInDigest } from "../src/pathB.ts";
 
 /** Derived from a public label: a test-only signer that never holds funds. */
 export const testSigner = privateKeyToAccount(keccak256(toBytes("octane.test.quote.signer")));

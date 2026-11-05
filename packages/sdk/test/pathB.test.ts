@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { authorisedValue, bindingNonce, buildPayment, encodeRelayJob, randomSalt, signPaymentAuth } from "../src/index.js";
-import { buildPaymentFixture, paymentFixturePath, testQuote, testSigner } from "./quote-fixture.js";
+import { authorisedValue, bindingNonce, buildPayment, encodeRelayJob, randomSalt, signPaymentAuth } from "../src/index.ts";
+import { buildPaymentFixture, paymentFixturePath, testQuote, testSigner } from "./quote-fixture.ts";
 
 const payer = testSigner.address;
 const merchant = "0x2222222222222222222222222222222222222222" as const;

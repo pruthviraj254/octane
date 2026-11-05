@@ -2,9 +2,9 @@ import { ExpirationTime } from "@arkiv-network/sdk";
 import { asc, eq, gt } from "@arkiv-network/sdk/query";
 import { addr, bytes, str, u256, u64 } from "@arkiv-network/sdk/schema";
 import { isAddressEqual, type Address, type Hash, type Hex } from "viem";
-import { hashQuote, isSignedByMaker, type Quote } from "../quotes.js";
-import type { ArkivReader } from "./client.js";
-import { MakerEntity, QuoteEntity } from "./schema.js";
+import { hashQuote, isSignedByMaker, type Quote } from "../quotes.ts";
+import type { ArkivReader } from "./client.ts";
+import { MakerEntity, QuoteEntity } from "./schema.ts";
 
 /** 15 blocks at 2s is the 30s board lifetime. A maker that stops refreshing is gone in 30s. */
 export const QUOTE_LIFETIME = ExpirationTime.fromBlocks(15);

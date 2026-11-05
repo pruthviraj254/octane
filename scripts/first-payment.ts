@@ -11,7 +11,7 @@ import {
   whitechainSepolia,
   type Quote,
 } from "@octane/sdk";
-import { env, envHex } from "./lib/env.js";
+import { env, envHex } from "./lib/env.ts";
 
 const usdtAbi = [
   {

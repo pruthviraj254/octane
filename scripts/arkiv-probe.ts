@@ -15,7 +15,7 @@ import {
   ARKIV_CHAIN_ID,
   type Quote,
 } from "@octane/sdk";
-import { env, envHex, run } from "./lib/env.js";
+import { env, envHex, run } from "./lib/env.ts";
 
 /**
  * Measures what the docs can't tell us: gas per refresh, write-to-query latency, and how long a

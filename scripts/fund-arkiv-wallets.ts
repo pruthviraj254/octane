@@ -2,7 +2,7 @@ import { createPublicClient, createWalletClient, formatEther, http, parseEther }
 import { privateKeyToAccount } from "viem/accounts";
 import { rabdi } from "@arkiv-network/sdk/chains";
 import { ARKIV_CHAIN_ID, explorerTx } from "@octane/sdk";
-import { env, envHex, run } from "./lib/env.js";
+import { env, envHex, run } from "./lib/env.ts";
 
 /** Tops up the other Arkiv writers from Maker Cautious. Skips any wallet that already has tGLM. */
 const AMOUNT = parseEther("2");
