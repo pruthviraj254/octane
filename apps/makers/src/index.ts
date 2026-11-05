@@ -35,12 +35,14 @@ import {
   type MakerConfig,
 } from "./config.ts";
 import { Journal } from "./journal.ts";
+import { JournalPublisher } from "./publish.ts";
 import { priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
 import { askRegime, type Regime } from "./regime.ts";
 import { startRelayer } from "./relayer.ts";
 
 const POOL = "0x5645101Ca8d2F7BaBC27b10359555767a1BdF999";
 const REGIME_INTERVAL_MS = 60_000;
+const JOURNAL_INTERVAL_MS = 300_000;
 /** A typical relay transaction's size, for the L1 data fee. */
 const RELAY_CALLDATA = `0x${"ab".repeat(900)}` as const;
 
@@ -272,6 +274,30 @@ process.on("SIGTERM", () => void shutdown());
 
 journal.write("started", { address: account.address, endpoint, spread: config.spread });
 watchClone();
+
+const publisher = new JournalPublisher(
+  account.address,
+  config.id,
+  endpoint,
+  journal,
+  reader,
+  writer,
+  setting("SWARM_BEE_URL"),
+  setting("SWARM_BATCH_ID"),
+);
+
+// Journals go to Swarm every few minutes, beside the quote loop.
+void (async () => {
+  while (!stopping) {
+    await new Promise((resolve) => setTimeout(resolve, JOURNAL_INTERVAL_MS));
+    try {
+      const reference = await publisher.publish();
+      if (reference) journal.write("published", { reference });
+    } catch (error) {
+      journal.write("publish-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
+    }
+  }
+})();
 
 // The regime call takes seconds, so it runs beside the quote loop rather than inside it.
 void (async () => {

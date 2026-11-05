@@ -10,12 +10,23 @@ import {
   type BoardQuote,
   type Chain,
   type Intent,
+  type MerchantOptIn,
   type PaymentResult,
 } from "@octane/sdk";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPublicClient, erc20Abi, formatUnits, http, parseGwei, parseUnits, type Address, type Hex } from "viem";
+import {
+  createPublicClient,
+  erc20Abi,
+  formatUnits,
+  http,
+  isAddressEqual,
+  parseGwei,
+  parseUnits,
+  type Address,
+  type Hex,
+} from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
-import { getMarket, whitechain } from "@/lib/market";
+import { MERCHANT, getMarket, whitechain } from "@/lib/market";
 import { loadWallet } from "@/lib/wallet";
 
 const DECIMALS = 6;
@@ -41,6 +52,8 @@ interface Plan {
   symbol: string;
   best: BoardQuote;
   others: number;
+  /** This recipient is a merchant whose checkout can cover the fee. */
+  merchant: boolean;
 }
 
 type Step =
@@ -107,6 +120,7 @@ export function Wallet() {
         body: JSON.stringify({ text }),
       });
       const body = (await response.json()) as { intent?: Intent; address?: Address; error?: string };
+      const recipient = body.address;
       if (!body.intent) throw new Error(body.error ?? "The concierge didn't answer.");
       if (body.intent.action !== "pay" || !body.address) {
         const reply = body.intent.action === "unknown" ? body.intent.reply : "I couldn't read that.";
@@ -128,6 +142,7 @@ export function Wallet() {
           symbol: body.intent.token,
           best,
           others: quotes.length - 1,
+          merchant: chain === "whitechain" && recipient !== undefined && isAddressEqual(recipient, MERCHANT),
         },
       });
     } catch (error) {
@@ -135,14 +150,37 @@ export function Wallet() {
     }
   }
 
-  async function pay(plan: Plan) {
+  async function merchantOptIn(amount: bigint): Promise<{ terms: MerchantOptIn; signature: Hex }> {
+    const response = await fetch("/api/optin", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ amount: amount.toString() }),
+    });
+    if (!response.ok) throw new Error("The merchant's checkout didn't respond.");
+    const { terms, signature } = (await response.json()) as {
+      terms: { merchant: Address; amount: string; maxFee: string; orderId: Hex; expiry: string };
+      signature: Hex;
+    };
+    return {
+      signature,
+      terms: { ...terms, amount: BigInt(terms.amount), maxFee: BigInt(terms.maxFee), expiry: BigInt(terms.expiry) },
+    };
+  }
+
+  async function pay(plan: Plan, merchantPays: boolean) {
     if (!wallet) return;
     setStep({ kind: "paying", plan });
     const maxFee = (plan.best.quote.fee * FEE_TOLERANCE_PERCENT) / 100n;
     try {
       const result =
         plan.chain === "whitechain"
-          ? await payOnWhitechain(getMarket(), { payer: wallet.account, to: plan.to, amount: plan.amount, maxFee })
+          ? await payOnWhitechain(getMarket(), {
+              payer: wallet.account,
+              to: plan.to,
+              amount: plan.amount,
+              maxFee,
+              ...(merchantPays ? { merchantOptIn: await merchantOptIn(plan.amount) } : {}),
+            })
           : await payOnEfDevnet(getMarket(), {
               sender: wallet.account.address,
               privateKey: wallet.key,
@@ -217,8 +255,18 @@ export function Wallet() {
   );
 }
 
-function Confirm({ plan, onPay, onCancel }: { plan: Plan; onPay: (plan: Plan) => void; onCancel: () => void }) {
+function Confirm({
+  plan,
+  onPay,
+  onCancel,
+}: {
+  plan: Plan;
+  onPay: (plan: Plan, merchantPays: boolean) => void;
+  onCancel: () => void;
+}) {
+  const [merchantPays, setMerchantPays] = useState(false);
   const fee = plan.best.quote.fee;
+  const canMerchantPay = plan.merchant && fee < plan.amount;
   const reason = useMemo(() => {
     const total = plan.others + 1;
     return plan.others > 0 ? `${plan.best.style} is the cheapest of ${total} makers quoting now.` : `${plan.best.style} is quoting now.`;
@@ -229,12 +277,30 @@ function Confirm({ plan, onPay, onCancel }: { plan: Plan; onPay: (plan: Plan) =>
       <p className="text-lg font-medium">
         Pay {plan.name} {money(plan.amount)} {plan.symbol}
       </p>
-      <p className="mt-1 text-zinc-300">
-        Fee {money(fee)} {plan.symbol}. Total {money(plan.amount + fee)} {plan.symbol}.
-      </p>
+      {merchantPays ? (
+        <p className="mt-1 text-zinc-300">
+          {plan.name} covers the {money(fee)} {plan.symbol} fee. You pay {money(plan.amount)} {plan.symbol}.
+        </p>
+      ) : (
+        <p className="mt-1 text-zinc-300">
+          Fee {money(fee)} {plan.symbol}. Total {money(plan.amount + fee)} {plan.symbol}.
+        </p>
+      )}
       <p className="mt-1 text-sm text-zinc-400 first-letter:uppercase">{reason}</p>
+      {canMerchantPay && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+          <input
+            type="checkbox"
+            data-testid="merchant-pays"
+            checked={merchantPays}
+            onChange={(event) => setMerchantPays(event.target.checked)}
+            className="accent-orange-500"
+          />
+          {plan.name} offers to cover the fee
+        </label>
+      )}
       <div className="mt-4 flex gap-2">
-        <button onClick={() => onPay(plan)} className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-black">
+        <button onClick={() => onPay(plan, merchantPays)} className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-black">
           Confirm
         </button>
         <button onClick={onCancel} className="rounded-xl border border-zinc-700 px-5 py-2 text-zinc-300">
