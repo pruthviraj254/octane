@@ -1,7 +1,9 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { redactAccessKey } from "@octane/sdk";
 
-process.loadEnvFile(fileURLToPath(new URL("../../.env", import.meta.url)));
+const envPath = fileURLToPath(new URL("../../.env", import.meta.url));
+process.loadEnvFile(envPath);
 
 /** Reads a required setting. Never logs the value. */
 export function env(name: string): string {
@@ -25,4 +27,13 @@ export async function run(main: () => Promise<void>): Promise<void> {
     console.error(redactAccessKey(text));
     process.exitCode = 1;
   }
+}
+
+/** Records a deployed address in .env, so the next run reuses it. */
+export function saveEnv(name: string, value: string): void {
+  const line = `${name}=${value}`;
+  const text = readFileSync(envPath, "utf8");
+  const pattern = new RegExp(`^${name}=.*$`, "m");
+  writeFileSync(envPath, pattern.test(text) ? text.replace(pattern, line) : `${text.trimEnd()}\n${line}\n`);
+  process.env[name] = value;
 }

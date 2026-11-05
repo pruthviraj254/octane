@@ -27,7 +27,7 @@ Built at ETHGlobal Mumbai, November 2026.
 
 | Piece | State |
 |---|---|
-| Path A: one maker, one admitted transaction | Not started |
+| Path A: one maker, one admitted transaction | Working: [admitted and mined](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), rejected by the canonical mempool with `StorageReadNonSender` |
 | Path B: three maker-relayers, binding nonce | Working: [a payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest maker |
 | Arkiv live quote board | Working: three AI makers refreshing every ~10s, `/board` reads Arkiv directly |
 | MCP `send_sponsored` on Whitechain | Not started |
@@ -40,7 +40,7 @@ Explorer links for real payments go here as they happen.
 | Network | Transaction |
 |---|---|
 | Whitechain Sepolia, USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` | [First real payment](https://explorer.testnet.whitechain.io/tx/0xc34c96fac8183934d750a8b32a5dc138c76560ce0e6e8507f29c4c7bdb1d2424): the payer held 0 WBT before and after, and sent no transaction |
-| EF alt-mempool devnet | Pending |
+| EF alt-mempool devnet | [Sponsored frame transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605): the sender held 0 ETH, and the maker's staked clone paid |
 
 ## Why onchain stablecoin settlement on Whitechain
 

@@ -5,5 +5,6 @@ export * from "./arkiv/writer.ts";
 export * from "./identity.ts";
 export * from "./jobs.ts";
 export * from "./networks.ts";
+export * from "./pathA.ts";
 export * from "./pathB.ts";
 export * from "./quotes.ts";

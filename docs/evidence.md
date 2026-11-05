@@ -18,6 +18,27 @@ Real results only: transaction links, admission reports, measured gas and latenc
 
 ## EF alt-mempool devnet
 
+**First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
+
+The same signed transaction went to both mempools:
+| Mempool | Result |
+|---|---|
+| Canonical (`eth_sendRawTransaction`) | Rejected: `Frame transaction validation-prefix simulation failed: StorageReadNonSender` |
+| Alternative (`eth_sendFrameTransaction`) | Admitted and mined |
+
+Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admission.json). Canonical rejection: [`docs/evidence/patha-canonical-rejection.txt`](evidence/patha-canonical-rejection.txt).
+
+**Validation gas:** expiry 3,051 · sender 100 · `pay` 54,769, inside the sidecar's flat 100k budget.
+
+**Tampered transactions, each with a valid sender signature, all rejected by the clone before anything was spent:**
+| Tamper | Rejected with |
+|---|---|
+| Fee frame pays the maker 1 base unit | `0x590a777c` `BadFeeFrame()` |
+| Fee frame pays someone else | `0x590a777c` `BadFeeFrame()` |
+| Quote signature from another key | `0x35abf5ae` `BadMakerSignature()` |
+
+**Deployed:** implementation `0xa8face600456e543f968e5a828f94b8ee9178d99`, factory `0xa8de82d087393dd10ff4e9af22ded8926d48dbe2`, Maker Cautious's clone `0xD31E030E11B4687e1B3EA2C4f7326f4C589C7b58` (staked 0.012 ETH). The devnet can reset; `scripts/setup-devnet.ts` rebuilds all of this.
+
 ## Arkiv (Rabdi)
 
 **Probe on real Rabdi, `scripts/arkiv-probe.ts`:**

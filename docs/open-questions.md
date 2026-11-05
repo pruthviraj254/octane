@@ -4,7 +4,6 @@ Log anything that can't be verified. Move items to Answered with the source.
 
 ## Open
 - EF: can a `pre_verify` `transferFrom` pull be admitted after a one-time approval? (late spike)
-- EF: do the `TXPARAM`, `FRAMEPARAM` and `FRAMEDATALOAD` helpers work inside an EIP-1167 clone on the live devnet? (probe first in M3)
 - EF: limits for about 50 SENDER frames.
 - EF: Anon-RPC support for Whitechain and Arkiv (only needed if we take fallback FB1).
 - Arkiv: does a 10s `request` (5 blocks) work reliably, or does it need 20s?
@@ -14,6 +13,9 @@ Log anything that can't be verified. Move items to Answered with the source.
 - ENS (add-on only): bonus terms, ENSv2 addresses on Sepolia.
 
 ## Answered
+- EF, helpers inside a clone: `TXPARAM`, `FRAMEPARAM`, `FRAMEDATALOAD`, `SIGPARAM` and `APPROVE` all work through an EIP-1167 clone on the live devnet. See `docs/evidence.md`.
+- EF, `pay` gas: 54,769 with every check on, so the sidecar's 100k budget is enough.
+- EF, deploy gas: the paymaster implementation used 8.6M gas; 6M runs out.
 - Whitechain, test USDT: swap WBT on Uniswap V3 pool `0x5645101Ca8d2F7BaBC27b10359555767a1BdF999` through SwapRouter02 `0xe208cC685cD95D56E8ec6DEC9816476567fc6962`. No faucet or public mint.
 - Whitechain, verification: `forge verify-contract --verifier blockscout --verifier-url https://explorer.testnet.whitechain.io/api/`. The `/api/` suffix is required.
 - Whitechain, USDT domain: `{name:"Tether USD", version:"1", chainId:1874, verifyingContract:USDT}`. `eip712Domain()` and `version()` revert; assert against `DOMAIN_SEPARATOR()`.
