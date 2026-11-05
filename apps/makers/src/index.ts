@@ -15,6 +15,7 @@ import {
   whitechainSepolia,
   type Quote,
 } from "@octane/sdk";
+import { claudeCli, type LlmClient } from "@octane/sdk/llm";
 import { createPublicClient, formatEther, formatGwei, formatUnits, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { estimateL1Fee } from "viem/op-stack";
@@ -35,7 +36,7 @@ import {
 } from "./config.ts";
 import { Journal } from "./journal.ts";
 import { priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
-import { askRegime, claudeCli, type LlmClient, type Regime } from "./regime.ts";
+import { askRegime, type Regime } from "./regime.ts";
 import { startRelayer } from "./relayer.ts";
 
 const POOL = "0x5645101Ca8d2F7BaBC27b10359555767a1BdF999";
