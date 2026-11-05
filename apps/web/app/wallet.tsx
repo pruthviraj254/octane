@@ -3,6 +3,7 @@
 import {
   EF_USDC,
   WHITECHAIN_USDT,
+  efDevnet,
   getQuotes,
   payOnEfDevnet,
   payOnWhitechain,
@@ -13,7 +14,6 @@ import {
 } from "@octane/sdk";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPublicClient, erc20Abi, formatUnits, http, parseGwei, parseUnits, type Address, type Hex } from "viem";
-import { efDevnet } from "@octane/sdk";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { getMarket, whitechain } from "@/lib/market";
 import { loadWallet } from "@/lib/wallet";
@@ -23,12 +23,13 @@ const REFRESH_MS = 5_000;
 /** Room for the fee to move between showing it and paying it. The payer's signature caps it. */
 const FEE_TOLERANCE_PERCENT = 110n;
 
-const devnet = createPublicClient({ chain: efDevnet, transport: http() });
+const devnet = createPublicClient({ chain: efDevnet, transport: http(undefined, { timeout: 8_000, retryCount: 0 }) });
 
 interface Balances {
   usdt: bigint;
   usdc: bigint;
-  gasTokens: bigint;
+  wbt: bigint;
+  eth: bigint;
   transactionsSent: number;
 }
 
@@ -64,18 +65,29 @@ export function Wallet() {
 
   const refresh = useCallback(async () => {
     if (!address) return;
-    try {
-      const [usdt, wbt, sent, usdc, eth] = await Promise.all([
+    // Each chain loads on its own, so a stalled devnet can't blank the USDT balance.
+    const [whitechainResult, devnetResult] = await Promise.allSettled([
+      Promise.all([
         whitechain.readContract({ address: WHITECHAIN_USDT, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
         whitechain.getBalance({ address }),
         whitechain.getTransactionCount({ address }),
+      ]),
+      Promise.all([
         devnet.readContract({ address: EF_USDC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
         devnet.getBalance({ address }),
-      ]);
-      setBalances({ usdt, usdc, gasTokens: wbt + eth, transactionsSent: sent });
-    } catch {
-      // A failed read keeps the last balances on screen; the next refresh tries again.
-    }
+      ]),
+    ]);
+    setBalances((previous) => {
+      const next = previous ?? { usdt: 0n, usdc: 0n, wbt: 0n, eth: 0n, transactionsSent: 0 };
+      const merged = { ...next };
+      if (whitechainResult.status === "fulfilled") {
+        [merged.usdt, merged.wbt, merged.transactionsSent] = whitechainResult.value;
+      }
+      if (devnetResult.status === "fulfilled") [merged.usdc, merged.eth] = devnetResult.value;
+      // Nothing has loaded yet: keep showing the placeholder, not a false zero.
+      if (!previous && whitechainResult.status === "rejected" && devnetResult.status === "rejected") return previous;
+      return merged;
+    });
   }, [address]);
 
   useEffect(() => {
@@ -159,7 +171,7 @@ export function Wallet() {
           <p className="mt-1 text-lg tabular-nums text-zinc-300">{money(balances.usdc)} USDC</p>
         )}
         <p className="mt-3 text-sm text-zinc-500" data-testid="gas-proof">
-          No gas token needed. Gas tokens held: {balances ? balances.gasTokens.toString() : "…"} · Transactions you've sent:{" "}
+          No gas token needed. Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "…"} · Transactions you've sent:{" "}
           {balances ? balances.transactionsSent : "…"}
         </p>
       </div>
@@ -208,8 +220,8 @@ export function Wallet() {
 function Confirm({ plan, onPay, onCancel }: { plan: Plan; onPay: (plan: Plan) => void; onCancel: () => void }) {
   const fee = plan.best.quote.fee;
   const reason = useMemo(() => {
-    const competitors = plan.others === 1 ? "1 other maker" : `${plan.others} other makers`;
-    return plan.others > 0 ? `${plan.best.style} is cheapest of ${competitors} quoting now.` : `${plan.best.style} is quoting now.`;
+    const total = plan.others + 1;
+    return plan.others > 0 ? `${plan.best.style} is the cheapest of ${total} makers quoting now.` : `${plan.best.style} is quoting now.`;
   }, [plan]);
 
   return (
@@ -220,7 +232,7 @@ function Confirm({ plan, onPay, onCancel }: { plan: Plan; onPay: (plan: Plan) =>
       <p className="mt-1 text-zinc-300">
         Fee {money(fee)} {plan.symbol}. Total {money(plan.amount + fee)} {plan.symbol}.
       </p>
-      <p className="mt-1 text-sm capitalize text-zinc-400">{reason}</p>
+      <p className="mt-1 text-sm text-zinc-400 first-letter:uppercase">{reason}</p>
       <div className="mt-4 flex gap-2">
         <button onClick={() => onPay(plan)} className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-black">
           Confirm
@@ -239,7 +251,7 @@ function Receipt({ plan, result }: { plan: Plan; result: PaymentResult }) {
       <p className="text-lg font-medium">
         Paid {plan.name} {money(plan.amount)} {plan.symbol}
       </p>
-      <p className="mt-1 text-sm capitalize text-zinc-400">
+      <p className="mt-1 text-sm text-zinc-400">
         Fee {money(result.fee)} {plan.symbol} to {result.makerStyle}.
       </p>
       <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-orange-400 underline">

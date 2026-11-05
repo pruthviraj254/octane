@@ -156,18 +156,37 @@ async function updateRegime(market: Market): Promise<void> {
 let stopping = false;
 let onBoard = false;
 
-const efClient = createPublicClient({ chain: efDevnet, transport: http(undefined, { timeout: 6_000 }) });
+const efClient = createPublicClient({ chain: efDevnet, transport: http(undefined, { timeout: 8_000, retryCount: 0 }) });
+
+/**
+ * Whether the clone can back a Path A quote. This is checked in the background, never in the
+ * quote loop: a stalled devnet must not delay this maker's Whitechain quote past its expiry.
+ */
+const CLONE_CHECK_MS = 30_000;
+const MAX_CLONE_CHECK_AGE_MS = 300_000;
+let cloneBacked: { ok: boolean; at: number } | undefined;
+
+function watchClone(): void {
+  if (!config!.quotesPathA) return;
+  const clone = hexSetting("OCTANE_CLONE_CAUTIOUS");
+  void (async () => {
+    while (!stopping) {
+      try {
+        const balance = await efClient.getBalance({ address: clone });
+        cloneBacked = { ok: balance >= MIN_CLONE_BALANCE, at: Date.now() };
+      } catch {
+        // Keep the last answer until it's too old to trust.
+      }
+      await new Promise((resolve) => setTimeout(resolve, CLONE_CHECK_MS));
+    }
+  })();
+}
 
 /** A Path A quote, if this maker offers one and its clone can back it. */
 async function pathAQuote(seq: bigint): Promise<StandingQuote | undefined> {
   if (!config!.quotesPathA) return undefined;
+  if (!cloneBacked?.ok || Date.now() - cloneBacked.at > MAX_CLONE_CHECK_AGE_MS) return undefined;
   const clone = hexSetting("OCTANE_CLONE_CAUTIOUS");
-  try {
-    if ((await efClient.getBalance({ address: clone })) < MIN_CLONE_BALANCE) return undefined;
-  } catch {
-    // The devnet being unreachable says nothing about Whitechain, so that quote still goes out.
-    return undefined;
-  }
   const quote: Quote = {
     maker: account.address,
     chainId: BigInt(efDevnet.id),
@@ -252,6 +271,7 @@ process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 
 journal.write("started", { address: account.address, endpoint, spread: config.spread });
+watchClone();
 
 // The regime call takes seconds, so it runs beside the quote loop rather than inside it.
 void (async () => {
