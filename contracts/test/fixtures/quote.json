@@ -1,0 +1,17 @@
+{
+  "quote": {
+    "maker": "0x62E44eF36baF27d6CA65bD0eF2888748930ED4D1",
+    "chainId": "1874",
+    "settlement": "0x1111111111111111111111111111111111111111",
+    "token": "0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7",
+    "maxGas": "200000",
+    "fee": "50000",
+    "validUntil": "1800000000",
+    "nonce": "7"
+  },
+  "quoteTypeHash": "0x0f772776350db0afe08545909204f45182d77fc6d9fbc0db421a1acbd603ba9e",
+  "domainSeparator": "0xc425c0c9dc901de0b4ba5cc66297ad55f7dde60e1a2f93055f388ddf02975127",
+  "structHash": "0x708bebaac41128927d3169a948431110bf2ccc974824698daabb94a459d9e359",
+  "digest": "0x6347a0f41c6c9f293c660dd9dd520c7a04fa31579f1120f3b63846efbf7ffd11",
+  "signature": "0x1c429067109a1c3c9720205f02799b3d2c6dc2aed7b0ed56917000a18a0508262fe8f9890a58de2b4f1b6b3d8536ea1be4ab3fdc35cd3907b9940c0c8e64774e1c"
+}
