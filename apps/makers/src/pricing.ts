@@ -9,6 +9,8 @@ export interface Market {
   wbtPrice: bigint;
   /** The maker's own WBT, in wei. */
   wbtBalance: bigint;
+  /** The Whitechain block this was read at, so anyone can check the balance afterwards. */
+  block?: bigint;
 }
 
 const WEI_PER_WBT = 10n ** 18n;

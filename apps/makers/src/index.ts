@@ -98,6 +98,7 @@ async function readMarket(): Promise<Market> {
     l1Fee,
     wbtPrice: wbtPriceFromSqrt(slot0[0]),
     wbtBalance,
+    block: block.number,
   };
 }
 
@@ -242,6 +243,11 @@ async function tick(): Promise<void> {
     regime: regime.name,
     bufferBps: regime.bufferBps,
     tx: result.status === "sent" ? result.txHash : undefined,
+    // Public inputs to the coverage score, checkable against Whitechain at this block.
+    block: market.block,
+    wbt: market.wbtBalance,
+    gasPrice: market.gasPrice,
+    maxGas: MAX_GAS,
   });
 }
 

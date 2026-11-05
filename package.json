@@ -11,7 +11,9 @@
     "fixture:quote": "pnpm --filter @octane/sdk fixture:quote",
     "makers": "pnpm --filter @octane/makers all",
     "maker": "pnpm --filter @octane/makers start",
-    "web": "pnpm --filter @octane/web dev"
+    "web": "pnpm --filter @octane/web dev",
+    "indexer": "pnpm --filter @octane/indexer start",
+    "recompute-fade": "pnpm --filter @octane/scripts exec tsx recompute-fade.ts"
   },
   "devDependencies": {
     "@forshtat/hegota-support": "0.0.1"

@@ -14,13 +14,22 @@ importers:
 
   apps/indexer:
     dependencies:
+      '@arkiv-network/sdk':
+        specifier: 1.0.1
+        version: 1.0.1(typescript@7.0.2)(viem@2.57.16(typescript@7.0.2)(zod@4.6.7))
       '@octane/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      viem:
+        specifier: ^2.57.16
+        version: 2.57.16(typescript@7.0.2)(zod@4.6.7)
     devDependencies:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
