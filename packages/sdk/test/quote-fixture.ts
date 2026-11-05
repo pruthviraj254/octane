@@ -8,6 +8,7 @@ import {
   signQuote,
   type Quote,
 } from "../src/quotes.js";
+import { bindingNonce, buildPayment, merchantOptInDigest } from "../src/pathB.js";
 
 /** Derived from a public label: a test-only signer that never holds funds. */
 export const testSigner = privateKeyToAccount(keccak256(toBytes("octane.test.quote.signer")));
@@ -66,3 +67,45 @@ export async function buildQuoteFixture(): Promise<QuoteFixture> {
 }
 
 export const fixturePath = new URL("../../../contracts/test/fixtures/quote.json", import.meta.url);
+
+export const paymentFixturePath = new URL("../../../contracts/test/fixtures/payment.json", import.meta.url);
+
+export function buildPaymentFixture() {
+  const relay: Address = "0x1111111111111111111111111111111111111111";
+  const merchant: Address = "0x2222222222222222222222222222222222222222";
+  const salt: Hash = "0x00000000000000000000000000000000000000000000000000000000000000aa";
+  const payment = buildPayment({
+    quote: testQuote,
+    payer: "0x3333333333333333333333333333333333333333",
+    merchant,
+    amount: 10_000_000n,
+    merchantPays: true,
+    salt,
+  });
+  const optIn = {
+    merchant,
+    amount: payment.amount,
+    maxFee: 70_000n,
+    orderId: "0x00000000000000000000000000000000000000000000000000000000000000bb" as Hash,
+    expiry: 1_800_000_300n,
+  };
+  return {
+    relay,
+    chainId: testQuote.chainId.toString(),
+    quoteHash: hashQuote(testQuote),
+    merchant,
+    amount: payment.amount.toString(),
+    maker: testQuote.maker,
+    feePayer: payment.feePayer,
+    salt,
+    nonce: bindingNonce(testQuote, payment),
+    optIn: {
+      merchant,
+      amount: optIn.amount.toString(),
+      maxFee: optIn.maxFee.toString(),
+      orderId: optIn.orderId,
+      expiry: optIn.expiry.toString(),
+    },
+    optInDigest: merchantOptInDigest(relay, testQuote.chainId, optIn),
+  };
+}

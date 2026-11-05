@@ -85,8 +85,6 @@ This project is built with AI assistance.
 - **Agent tooling:** Claude Code runs with the official Arkiv plugin, Whitechain's `whitechain-dev` skill and docs MCP, and a local index of the EF alt-mempool docs. The files in `.claude/skills/` are third-party reference material, not project code.
 - **In the product:** the makers call an LLM at runtime to choose a bounded risk buffer and write journal lines. Contracts enforce the limits, and the payer always signs a maximum fee.
 
-All project code is written during the event.
-
 ## Credits
 
 - EF's [mempool-workshop](https://github.com/forshtat/mempool-workshop) and sidecar, used as references for frame transactions.
