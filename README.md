@@ -30,7 +30,7 @@ Built at ETHGlobal Mumbai, November 2026.
 | Path A: one maker, one admitted transaction | Working: [admitted and mined](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), rejected by the canonical mempool with `StorageReadNonSender` |
 | Path B: three maker-relayers, binding nonce | Working: [a payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest maker |
 | Arkiv live quote board | Working: three AI makers refreshing every ~10s, `/board` reads Arkiv directly |
-| MCP `send_sponsored` on Whitechain | Not started |
+| MCP `send_sponsored` on Whitechain | Working: [a Claude agent paid 3 people](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c) with zero WBT |
 | Basic concierge | Not started |
 
 ## Proof of settlement
