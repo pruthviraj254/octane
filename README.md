@@ -29,7 +29,8 @@ Built at ETHGlobal Mumbai, November 2026.
 | Path B: gasless USDT | [A payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest of three competing makers |
 | Live board on Arkiv | Three AI makers refreshing every ~10s; `/board` reads Arkiv directly |
 | AI agents | [Claude paid 3 people](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c) through the MCP server, holding zero WBT |
-| People | The wallet at `/`: "Pay Rahul 10 USDT", "Rahul ko 10 USDC bhejo", or a pasted address |
+| People | The wallet at `/`, with a browser wallet or the built-in one: "Pay Rahul 10 USDT", "Rahul ko 10 USDC bhejo", or a pasted address |
+| Makers | The desk at `/makers/desk`: create a maker, fund it, and leave pricing to an AI agent or set your own rate and time limit |
 | Merchant-pays | [The merchant covers the fee](https://explorer.testnet.whitechain.io/tx/0x7cbd94b25ecc98eefd23fddf93f501b08fa0e34e310a2ecee2e37ded2b55f4a2) with a signed opt-in |
 | Gas auctions | An agent posts a job on Arkiv, makers bid, and the [cheapest reliable bid settles](https://explorer.testnet.whitechain.io/tx/0xed2421b81b45bcf9e32bf74b2211784ac13a4f7fe9fc702a19fad7b1be80fb2e) |
 | Batched payouts | [8 people paid in one frame transaction](https://explorer.altmempool.wtf/tx/0x75cd006896b51874572cf7051f16ef7a707566c18ce7d58a71fa9bd3444eef68) for one fee |
@@ -107,24 +108,19 @@ pnpm web               # open http://localhost:3000/board
 
 ## Run your own maker
 
-Anyone with spare gas tokens can earn fees. There's no signup and no allowlist: a quote counts if it's signed by its maker, written by that maker's wallet, and settles through `OctaneRelay`.
+Anyone with spare gas tokens can earn fees. There's no signup and no allowlist: a quote counts if it's signed by its maker, written by that maker's wallet, and settles through `OctaneRelay` or a clone from the factory.
 
-| You need | Why | Where to get it |
-|---|---|---|
-| WBT on Whitechain Sepolia, at least 0.01 | Pays gas for each payment, about 0.00075 WBT | [Faucet](https://faucet.testnet.whitechain.io) |
-| tGLM on Arkiv, at least 0.01 | Keeps your quote on the board, about 0.034 tGLM an hour | [Arkiv faucet](https://hub.arkiv.network/faucet) |
-| A running maker | Prices, quotes and relays payments | This repo |
+The maker desk at `/makers/desk` does all of this on screen:
 
-```bash
-pnpm new-maker nova --spread 5000   # creates a wallet in .env and checks its balances
-pnpm maker nova                     # joins the board
-```
+1. **Create a desk wallet.** A maker sends a transaction for every payment it carries, so it needs a wallet that signs around the clock. The key stays in `.env` on your machine.
+2. **Fund it.** WBT pays gas, about 0.00075 WBT a payment. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour. On testnet, the desk can borrow a small float.
+3. **Choose who prices.** An AI agent reprices about every 10 seconds, or you set your own rate and time limit, and change either while live. Fees stay between 0.065 and 0.50 USDT either way.
+4. **Go live.** Fees arrive as stablecoins in the same transaction as each payment.
+5. **Have spare ETH?** Set up a paymaster: your own clone on the EF devnet, staked 0.012 ETH and funded with 0.1 ETH, which sponsors USDC payments.
 
-To use a wallet you already hold, add `MAKER_NOVA_PRIVATE_KEY=0x…` to `.env` first. Fees arrive in that wallet as USDT in the same transaction as each payment, and the indexer starts scoring a new maker once its first journal is published.
+From the command line, `pnpm new-maker nova --spread 5000 --fund --path-a` then `pnpm maker nova` does the same. To use a wallet you already hold, add `MAKER_NOVA_PRIVATE_KEY=0x…` to `.env` first.
 
-What you risk is your own gas. Every job is simulated before sending, and a payer who races you can cost at most one reverted transaction. Your funds never leave your wallet except as gas.
-
-On Path A, a maker with spare ETH also needs its own paymaster: `OctanePaymasterFactory.createClone(maxGasPrice)`, then `stake()` at least 0.012 ETH on the clone and fund it. Anyone can create one and the market trusts any clone from the factory, but the only clone built so far is Maker Cautious's, by `scripts/setup-devnet.ts`.
+What you risk is your own gas. Every job is simulated before sending, and a payer who races you can cost you at most one reverted transaction.
 
 ## Arkiv writers and a runnable query
 
@@ -160,7 +156,9 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 - The Anthropic API client has only been tested against a local stand-in server, because the build machine has no API key. Every live LLM call so far has gone through Claude Code.
 - The embedded wallet keeps its key in browser storage. That's fine for testnet tokens and wrong for real money.
 - A new wallet gets its first USDT by transfer, because it can't swap without WBT.
-- Path A fees are a fixed 0.05 USDC, because the EF devnet has no ETH/USDC market to price from. Only Maker Cautious quotes on Path A.
+- Path A fees are a fixed 0.05 USDC unless a maker sets its own rate, because the EF devnet has no ETH/USDC market to price from.
+- Browser wallets can pay in USDT, but they can't sign EIP-8141 frame transactions yet, so USDC on Path A needs the built-in wallet.
+- The maker desk only answers on the machine it runs on, because it can start and stop a maker.
 - Path A ships Layout 1, so a maker can pay gas for a fee frame that later reverts. The damage is bounded, and [`docs/ef-design.md`](docs/ef-design.md) explains it and a tested fix.
 - Swarm journals use a public gateway's stamps, so they can disappear without notice. See [`arkiv/swarm.md`](arkiv/swarm.md).
 - Agent spend caps are enforced in the MCP server, off-chain. The onchain limit is the maximum fee signed for each payment.

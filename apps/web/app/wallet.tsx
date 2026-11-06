@@ -252,6 +252,7 @@ export function Wallet() {
               payments: [{ to: plan.to, amount: plan.amount }],
               maxFee,
               maxFeePerGas: parseGwei("2"),
+              avoid: plan.skipped.map((skipped) => skipped.maker),
               ...chosen,
             });
       setStep({ kind: "paid", plan, result });

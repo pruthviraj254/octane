@@ -70,6 +70,24 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 
 **An agent choosing its maker, Nov 6:** [`send_sponsored` with Balancer's address](https://explorer.testnet.whitechain.io/tx/0xe60d99b70324848eb242bf05079cf2c3f1c6276d6b08b5cca1e258623b813b7d) settled through Balancer for 0.076025 USDT, though cheaper makers were live.
 
+**Connecting a browser wallet, Nov 6.** Tested with a stand-in EIP-1193 wallet, because a headless browser can't run MetaMask. It starts on the wrong network and refuses to sign for any other chain, as MetaMask does.
+| Check | Result |
+|---|---|
+| Connect | Added Whitechain, then switched to it |
+| [Payment signed by the wallet](https://explorer.testnet.whitechain.io/tx/0x9c0b5895c02c9f61b5569e6705761574ab82c94d661a0715970073ebd1da09ea) | One `eth_signTypedData_v4`, payer −0.087845, merchant +0.01, maker +0.077845 USDT, no transaction from the payer |
+| Reload | Reconnected with no popup |
+| USDC while connected | Refused with the reason, because browser wallets can't sign frame transactions |
+
+**A person running a maker from the desk, Nov 6.** Maker Orbit, driven through the page with no commands:
+| Step | Result |
+|---|---|
+| Create, borrow funds, go live at 0.07 | On the board at 0.07, in manual mode |
+| Change the rate to 0.08 | Live within one refresh |
+| Add 30 minutes | The limit moved by exactly 1,800 seconds |
+| [Carry a payment](https://explorer.testnet.whitechain.io/tx/0xc71bbded4de05cdce483c9b08e295c27155f1af63d939ae799e7c648ab9c5343) | Earned exactly 0.08 USDT |
+| Reach the time limit | Left the board by itself, then returned when extended |
+| Set up a paymaster, [carry a USDC payment](https://explorer.altmempool.wtf/tx/0x004930840d7141cd0674fe501ad5791d5df66e2ac6ad3caf01fa6d21dbe57859) | Orbit's own staked clone paid the gas, and Orbit earned 0.08 USDC |
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30), mined with status success, 327,011 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.

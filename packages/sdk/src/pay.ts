@@ -239,12 +239,15 @@ export async function payOnEfDevnet(
     payments: readonly { to: Address; amount: bigint }[];
     maxFee: bigint;
     maxFeePerGas: bigint;
+    /** Makers to pass over, such as those with a poor fade score. */
+    avoid?: readonly Address[];
     /** Use only this maker. If it can't deliver, the payment stops. */
     maker?: Address;
   },
 ): Promise<PaymentResult> {
   const { quotes } = await getQuotes(market, "ef-devnet");
-  const [entry] = eligibleQuotes(quotes, { maxFee: args.maxFee, avoid: [], ...(args.maker ? { maker: args.maker } : {}) });
+  const avoid = args.maker ? [] : (args.avoid ?? (await makersToAvoid(market, quotes.map((candidate) => candidate.quote.maker))));
+  const [entry] = eligibleQuotes(quotes, { maxFee: args.maxFee, avoid, ...(args.maker ? { maker: args.maker } : {}) });
   if (!entry) throw new Error(quotes.length === 0 ? "no live quotes on the EF devnet" : "every live quote is above your maximum fee");
 
   const nonce = await efPublicClient().getTransactionCount({ address: args.sender });
