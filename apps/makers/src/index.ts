@@ -171,6 +171,8 @@ const efClient = createPublicClient({ chain: efDevnet, transport: http(undefined
  */
 const CLONE_CHECK_MS = 30_000;
 const MAX_CLONE_CHECK_AGE_MS = 300_000;
+/** The devnet makes a block every 6s. Older than this and it's stopped, so a quote would be a promise it can't keep. */
+const MAX_DEVNET_BLOCK_AGE_SECONDS = 120n;
 let cloneBacked: { ok: boolean; at: number } | undefined;
 
 function watchClone(): void {
@@ -179,8 +181,11 @@ function watchClone(): void {
   void (async () => {
     while (!stopping) {
       try {
-        const balance = await efClient.getBalance({ address: clone });
-        cloneBacked = { ok: balance >= MIN_CLONE_BALANCE, at: Date.now() };
+        const [balance, block] = await Promise.all([efClient.getBalance({ address: clone }), efClient.getBlock()]);
+        const blockAge = BigInt(Math.floor(Date.now() / 1000)) - block.timestamp;
+        const ok = balance >= MIN_CLONE_BALANCE && blockAge < MAX_DEVNET_BLOCK_AGE_SECONDS;
+        if (cloneBacked?.ok !== ok) journal.write(ok ? "path-a-resumed" : "path-a-paused", { blockAge, balance });
+        cloneBacked = { ok, at: Date.now() };
       } catch {
         // Keep the last answer until it's too old to trust.
       }

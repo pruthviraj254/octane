@@ -142,7 +142,7 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 - Swarm journals use a public gateway's stamps, so they can disappear without notice. See [`arkiv/swarm.md`](arkiv/swarm.md).
 - Agent spend caps are enforced in the MCP server, off-chain. The onchain limit is the maximum fee signed for each payment.
 - Auctions need a little tGLM in the agent's wallet, because Arkiv has no sponsored writes.
-- The EF devnet can reset at any time; `scripts/setup-devnet.ts` rebuilds Octane's side.
+- The EF devnet can stop or reset at any time. Makers pause Path A quotes when it stops producing blocks, and `scripts/setup-devnet.ts` rebuilds Octane's side after a reset.
 
 ## AI usage disclosure
 

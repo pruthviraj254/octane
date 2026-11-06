@@ -53,6 +53,8 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 
 **Person paying from the wallet in Hinglish:** typed "Rahul ko 0.25 USDC bhejo", confirmed, and a [Layout 1 frame transaction](https://explorer.altmempool.wtf/tx/0x70c66d4c0048d93ed4dbfce1e60bce89e721ef4f5251f10b77686e31b70ce73b) mined with status success, 131,159 gas. The embedded wallet held no ETH.
 
+**Devnet outage, Nov 6:** the EF devnet stopped producing blocks at block 408262, around 04:28 IST, and Maker Cautious went on advertising Path A quotes on a chain that couldn't settle them. Makers now check the latest block's age and pause Path A quotes when it's over 120s old.
+
 ## Arkiv (Rabdi)
 
 **Reputation recomputed from public data alone (`pnpm recompute-fade`):** fade, uptime, coverage and fills all matched the board for Maker Aggressive, and the journal passed spot checks against 5 Arkiv writes and 5 Whitechain balances.
