@@ -27,7 +27,7 @@ Built at ETHGlobal Mumbai, November 2026.
 |---|---|
 | Path A: frame transactions | [Admitted and mined](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30), and rejected by the canonical mempool with `StorageReadNonSender` |
 | Path B: gasless USDT | [A payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest of three competing makers |
-| Live board on Arkiv | Three AI makers refreshing every ~10s; `/board` reads Arkiv directly |
+| Live board on Arkiv | Three AI makers refreshing every ~10s on `/board`. `/arkiv` shows everything stored there, with the exact queries |
 | AI agents | [Claude paid 3 people](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c) through the MCP server, holding zero WBT |
 | People | The wallet at `/`, with a browser wallet or the built-in one: "Pay Rahul 10 USDT", "Rahul ko 10 USDC bhejo", or a pasted address |
 | Makers | The desk at `/makers/desk`: create a maker, fund it, and leave pricing to an AI agent or set your own rate and time limit |

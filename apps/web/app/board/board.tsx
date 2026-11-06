@@ -1,6 +1,8 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { PricingNote } from "@/components/pricing-note";
 import { Badge, Empty, LiveDot, PageHeader, SectionTitle, Skeleton, Stat } from "@/components/ui";
 import { EASE } from "@/components/providers";
@@ -26,6 +28,12 @@ export function Board() {
           </>
         }
         description="Read straight from Arkiv. A maker that stops refreshing leaves within 30 seconds."
+        aside={
+          <Link href="/arkiv" className="group inline-flex items-center gap-1 text-sm text-ink-2 transition-colors hover:text-ink">
+            See the data on Arkiv
+            <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+          </Link>
+        }
       />
 
       <div className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-[1.5fr_1fr_1fr]">

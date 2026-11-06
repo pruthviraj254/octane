@@ -300,16 +300,7 @@ export function Wallet() {
               {balances ? <Balance value={balances.usdt} /> : <Skeleton className="h-12 w-44 align-bottom" />}{" "}
               <span className="font-sans text-lg font-medium tracking-normal text-ink-3">USDT</span>
             </p>
-            <p className="mt-2 text-[13px] text-ink-3">on {NETWORKS.whitechain.name}</p>
-            {balances && balances.usdc > 0n && (
-              <p className="mt-2 text-sm tabular-nums text-ink-2">
-                {money(balances.usdc)} USDC <span className="text-[13px] text-ink-3">on {NETWORKS["ef-devnet"].name}</span>
-              </p>
-            )}
-            <p className="mt-3 text-[13px] text-ink-3" data-testid="gas-proof">
-              Gas tokens held: {balances ? Number(formatEther(balances.wbt + balances.eth)).toFixed(balances.wbt + balances.eth > 0n ? 6 : 0) : "–"} · Transactions you've sent:{" "}
-              {balances ? balances.transactionsSent : "–"}
-            </p>
+            <Funds balances={balances} address={address} />
 
             {empty && (
               <p className="mt-3 rounded-xl bg-caution-soft px-3 py-2 text-[13px] leading-relaxed text-caution">
@@ -455,6 +446,41 @@ function LiveQuotes() {
 function Balance({ value }: { value: bigint }) {
   const text = money(value);
   return <Ticker value={text} dimFrom={text.indexOf(".") + 3} />;
+}
+
+/** Every balance on both chains, so anyone can see there's no gas token in this wallet. */
+function Funds({ balances, address }: { balances: Balances | undefined; address: Address | undefined }) {
+  const gas = (value: bigint | undefined) => (value === undefined ? "–" : value === 0n ? "0" : Number(formatEther(value)).toFixed(6));
+  const noGas = balances !== undefined && balances.wbt === 0n && balances.eth === 0n;
+  const chains = [
+    { name: NETWORKS.whitechain.name, stable: "USDT", held: balances?.usdt, gasToken: "WBT", gasHeld: balances?.wbt },
+    { name: NETWORKS["ef-devnet"].name, stable: "USDC", held: balances?.usdc, gasToken: "ETH", gasHeld: balances?.eth },
+  ];
+  return (
+    <div className="mt-4" data-testid="funds">
+      <div className="grid grid-cols-2 gap-2">
+        {chains.map((chain) => (
+          <div key={chain.name} className="rounded-xl bg-raised/50 p-3">
+            <p className="text-xs text-ink-3">{chain.name}</p>
+            <p className="mt-1.5 flex items-baseline justify-between gap-2 text-sm tabular-nums" data-testid={`held-${chain.stable}`}>
+              <span className="text-ink-3">{chain.stable}</span>
+              {chain.held === undefined ? "–" : money(chain.held)}
+            </p>
+            <p className="mt-0.5 flex items-baseline justify-between gap-2 text-sm tabular-nums" data-testid={`held-${chain.gasToken}`}>
+              <span className="text-ink-3">{chain.gasToken}</span>
+              <span className={chain.gasHeld === 0n ? "font-medium text-positive" : ""}>{gas(chain.gasHeld)}</span>
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[13px] text-ink-3" data-testid="gas-proof">
+        <span>
+          {noGas ? "No gas token on either chain" : "Gas tokens aren't needed to pay"} · {balances ? balances.transactionsSent : "–"} sent on Whitechain
+        </span>
+        {address && <External href={`https://explorer.testnet.whitechain.io/address/${address}`}>Check on the explorer</External>}
+      </p>
+    </div>
+  );
 }
 
 function Progress({ title, detail }: { title: string; detail?: string }) {
