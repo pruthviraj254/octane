@@ -35,10 +35,15 @@ function useDesks() {
   const [desks, setDesks] = useState<DeskInfo[] | undefined>();
   const [aiReady, setAiReady] = useState(true);
   const [problem, setProblem] = useState<string | undefined>();
+  const [isPublicSite, setIsPublicSite] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const response = await fetch("/api/desk", { cache: "no-store" });
+      if (response.status === 403) {
+        setIsPublicSite(true);
+        return;
+      }
       const body = (await response.json()) as { desks?: DeskInfo[]; aiConfigured?: boolean; error?: string };
       if (body.desks) {
         setDesks(body.desks);
@@ -53,10 +58,11 @@ function useDesks() {
   }, []);
 
   useEffect(() => {
+    if (isPublicSite) return;
     void refresh();
     const timer = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, isPublicSite]);
 
   const act: Act = useCallback(
     async (body) => {
@@ -88,7 +94,7 @@ function useDesks() {
     [refresh],
   );
 
-  return { desks, aiReady, problem, act, actWithResult };
+  return { desks, aiReady, problem, isPublicSite, act, actWithResult };
 }
 
 function useNow(): number {
@@ -124,7 +130,7 @@ function rateProblem(rate: string): string | undefined {
 }
 
 export function DeskPage() {
-  const { desks, aiReady, problem, act, actWithResult } = useDesks();
+  const { desks, aiReady, problem, isPublicSite, act, actWithResult } = useDesks();
 
   return (
     <section>
@@ -151,25 +157,43 @@ export function DeskPage() {
         </p>
       )}
 
-      <NewDesk act={act} aiReady={aiReady} />
-
-      <div className="mt-10">
-        <SectionTitle>Makers on this machine</SectionTitle>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {desks === undefined && <Skeleton className="block h-80 w-full rounded-2xl" />}
-          {desks?.length === 0 && <Empty>No makers yet. Set one up above.</Empty>}
-          {desks?.map((desk, index) => (
-            <motion.div
-              key={desk.name}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.05, ease: EASE }}
+      {isPublicSite ? (
+        <div data-testid="desk-private" className="mt-4 rounded-2xl bg-canvas/50 px-4 py-4 text-sm leading-relaxed text-ink-2">
+          <p className="font-medium text-ink">The desk isn't open on this public site.</p>
+          <p className="mt-1">
+            It can start and stop makers and move their funds, so it only runs on its owner's machine. To be a maker, run Octane
+            yourself and open this page there.{" "}
+            <a
+              href="https://github.com/pruthviraj254/octane#run-your-own-maker"
+              className="underline underline-offset-2 transition-colors hover:text-ink"
             >
-              <DeskCard desk={desk} act={act} actWithResult={actWithResult} aiReady={aiReady} />
-            </motion.div>
-          ))}
+              How to run your own maker
+            </a>
+          </p>
         </div>
-      </div>
+      ) : (
+        <>
+          <NewDesk act={act} aiReady={aiReady} />
+
+          <div className="mt-10">
+            <SectionTitle>Makers on this machine</SectionTitle>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {desks === undefined && <Skeleton className="block h-80 w-full rounded-2xl" />}
+              {desks?.length === 0 && <Empty>No makers yet. Set one up above.</Empty>}
+              {desks?.map((desk, index) => (
+                <motion.div
+                  key={desk.name}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.05, ease: EASE }}
+                >
+                  <DeskCard desk={desk} act={act} actWithResult={actWithResult} aiReady={aiReady} />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }
