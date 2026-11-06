@@ -42,6 +42,8 @@ sudo systemctl restart octane-web
 
 After changing `.env`, restart the services that use it. Copy it with `ssh ... 'umask 077; cat > ~/octane/.env' < .env`, then run `cat ~/octane/deploy/hosted.env >> ~/octane/.env`, so makers started from the desk keep their public addresses.
 
+A crashed maker restarts within 5 seconds, and a reboot brings everything back. Use `sudo systemctl stop octane-maker@<name>` to keep one offline.
+
 ## Back to the laptop
 
 ```bash

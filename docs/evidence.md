@@ -195,3 +195,15 @@ A new visitor's built-in wallet on the public site, in headless Chrome, with tes
 - ["Rahul ko 0.1 USDC bhejo"](https://explorer.altmempool.wtf/tx/0x5444b38ad2153164f8e4e05c1692dcd4e199938d422d40cceaf13d5a93440ee4) on Path A, from 0.30 to 0.15 USDC.
 - Afterwards the wallet held 0 WBT and 0 ETH, and had sent no transactions of its own on Whitechain.
 - Funding it was itself [a payment through Aggressive's public address](https://explorer.testnet.whitechain.io/tx/0xc146d5b5bf4b5aabbdd37f8d2573656da9c6b33102c8299aafe72f0f2ef01744).
+
+Full check of the hosted site against what worked locally, Nov 6:
+
+- Choosing a maker: [Balancer settled](https://explorer.testnet.whitechain.io/tx/0x5ccaa3c5a76fd85b387cb1d0ab0a10a77af27221a5c2a4db6a6d40143944fa96) at 0.077 while Aggressive was cheaper, and [Eth settled a USDC payment](https://explorer.altmempool.wtf/tx/0xb53ccac8e7fc680faa11d7ef64da2185994e6c99baa89a7331b7a84bef8cc5a4). Each picker listed only that chain's makers.
+- [Merchant-pays](https://explorer.testnet.whitechain.io/tx/0x0a735180b6940c9ac028c9497bc062d74598101860476cca6aea06c32ec52684): the payer sent 0.2, Rahul received 0.132771 and the maker 0.067229.
+- [A browser wallet](https://explorer.testnet.whitechain.io/tx/0x955cb629cac38ce179bfa0ada644c7375f6e3fb1b4ada647a7c87f6049c30e5f) connected and paid, using a stand-in wallet that follows the MetaMask interface, not MetaMask itself.
+- All five agent tools through the MCP server. [An auction](https://explorer.testnet.whitechain.io/tx/0xceb4b0b049c3f04b60cae858cb69343e403aa26fdea60d68d636feab995a7b0d) took 26.6s with 4 bids. One earlier auction call didn't return within 170s; bids were placed, no payment was made, and it didn't recur in 3 more runs. The cause is unknown.
+- The chat handled 7 cases, including a bare address, a bad address, two addresses, Hinglish and an off-topic question.
+- Fills on both chains reached Arkiv, each `journalRef` matched the server's latest upload, and `pnpm recompute-fade` matched the board on 125 journal files.
+- Desk over SSH: set a rate, extended and cleared the time limit, turned the AI on, and overrode it at 0.09 while its formula kept showing 0.071589.
+- A hard crash and the watchdog restart (exit 75) each recovered with one copy. A killed maker's quote left the board after 30s.
+- After a reboot the site answered in 27s, and all services returned with one copy of each maker.

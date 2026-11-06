@@ -2,6 +2,14 @@
 
 Whitechain requires 2 to 4 minutes showing every party, with zero crypto steps visible.
 
+**On the hosted site** (<https://octane.rishabhprajapati.me>)
+- The makers, indexer and website already run on the server. Don't run `pnpm makers` on the laptop.
+- Reputation reset: stop the makers on the server, then run the `mv` command below in `~/octane` there. On the server the journals are in the same folder.
+- Each website has its own built-in wallet, so fund the address shown on the public site.
+- The desk opens over SSH. See [`deploy/README.md`](../deploy/README.md).
+- Failure shot: `ssh -i ~/.ssh/octane-deploy.pem ubuntu@13.232.70.181 'sudo systemctl kill -s SIGKILL octane-maker@balancer; sudo systemctl stop octane-maker@balancer'`. The quote leaves within 30s. Bring it back with `sudo systemctl start octane-maker@balancer`.
+- A plain `pkill` isn't enough here, because the server restarts a crashed maker within 5 seconds.
+
 **Before recording**
 - Start a clean reputation record. Stop the makers, then run `mkdir -p apps/makers/data/dev-archive && mv apps/makers/data/*.jsonl apps/makers/data/*.publish.json apps/makers/data/dev-archive/`. Otherwise time the laptop was asleep counts as downtime.
 - Check the EF devnet is moving: run `cast block-number --rpc-url https://altmempool.forshtat.com` twice, 10 seconds apart. If it's stopped, show the recorded Path A links instead.
