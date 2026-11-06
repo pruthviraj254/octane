@@ -13,4 +13,5 @@ export * from "./pathA.ts";
 export * from "./pathB.ts";
 export * from "./pay.ts";
 export * from "./quotes.ts";
+export * from "./rate-limit.ts";
 export * from "./swarm.ts";

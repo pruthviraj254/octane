@@ -1,9 +1,10 @@
-import { CONCIERGE_SYSTEM, parseConciergeReply, parseIntent, settledWithoutLlm } from "@octane/sdk";
+import { CONCIERGE_SYSTEM, createAiLimit, parseConciergeReply, parseIntent, settledWithoutLlm } from "@octane/sdk";
 import { createLlm } from "@octane/sdk/llm";
 import { getAddress, isAddress } from "viem";
 import { serverSetting } from "@/lib/server-settings";
 
 const MAX_TEXT = 200;
+const aiLimit = createAiLimit({ perVisitor: 20, windowMs: 600_000, perDay: 2_000 });
 
 /** Demo contacts. A real wallet would use the payer's own address book or ENS. */
 const contacts: Record<string, string | undefined> = {
@@ -18,7 +19,9 @@ export async function POST(request: Request) {
   const text = body.text.trim();
 
   let intent = parseIntent(text);
-  if (!settledWithoutLlm(text)) {
+  // Past the limit the plain parser answers, so simple payments still work.
+  const visitor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  if (!settledWithoutLlm(text) && aiLimit.allow(visitor)) {
     try {
       const llm = createLlm({
         provider: serverSetting("LLM_PROVIDER"),
