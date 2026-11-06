@@ -73,6 +73,10 @@ export function setting(name: string): string {
   return value;
 }
 
+export function optionalSetting(name: string): string | undefined {
+  return process.env[name] ?? settings[name] ?? undefined;
+}
+
 export function hexSetting(name: string): `0x${string}` {
   const value = setting(name);
   if (!value.startsWith("0x")) throw new Error(`${name} must start with 0x`);

@@ -94,7 +94,7 @@ docs/           The full plan, open questions and evidence
 
 ## How to run
 
-Requires Node 22+, pnpm, Foundry and a logged-in Claude Code (the makers use it for regime calls).
+Requires Node 22+, pnpm and Foundry. The makers and the concierge need one of two LLM sources: a logged-in Claude Code, or an `ANTHROPIC_API_KEY` in `.env`. Without either, makers quote with a fixed 20% buffer and the wallet uses its plain text parser.
 
 ```bash
 pnpm install
@@ -133,8 +133,8 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 
 ## Current limitations
 
-- Makers run on one machine with a logged-in Claude Code, on `127.0.0.1` endpoints, so the wallet must run on that machine too. Hosting would need public endpoints and an LLM API client, which isn't built.
-- If Claude Code isn't available, makers still quote with a fixed 20% buffer, and the wallet falls back to a plain text parser.
+- Makers run on `127.0.0.1` endpoints, so the wallet must run on the same machine. Hosting would need public endpoints.
+- The Anthropic API client has only been tested against a local stand-in server, because the build machine has no API key. Every live LLM call so far has gone through Claude Code.
 - The embedded wallet keeps its key in browser storage. That's fine for testnet tokens and wrong for real money.
 - A new wallet gets its first USDT by transfer, because it can't swap without WBT.
 - Path A fees are a fixed 0.05 USDC, because the EF devnet has no ETH/USDC market to price from. Only Maker Cautious quotes on Path A.
@@ -164,7 +164,7 @@ Octane was built with heavy AI assistance, by one human builder and Claude Code 
 | Plan | `docs/OCTANE.md`, `docs/octane-plan.md` | AI-assisted |
 | Reference material | `.claude/skills/` | Third-party docs, not project code |
 
-**In the product:** each maker calls Claude Haiku to pick a bounded risk regime and write a journal line, and the wallet's concierge uses it to read a payment request. Code sets the prices and picks the quote. Contracts enforce the limits, and the payer always signs a maximum fee.
+**In the product:** each maker calls Claude to pick a bounded risk regime and write a journal line, and the wallet's concierge uses it to read a payment request. Both go through the logged-in Claude Code or the Anthropic API, set by `LLM_PROVIDER`. Code sets the prices and picks the quote. Contracts enforce the limits, and the payer always signs a maximum fee.
 
 ## Credits
 

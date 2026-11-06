@@ -13,6 +13,7 @@
     "fixture:quote": "tsx scripts/write-quote-fixture.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.6.0",
     "@arkiv-network/sdk": "1.0.1",
     "@forshtat/hegota-support": "0.0.1",
     "viem": "^2.57.16",

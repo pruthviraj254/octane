@@ -63,7 +63,8 @@ export function parseRegime(text: string): Regime {
   return { name: regime, bufferBps: BigInt(Math.round(bounded * 100)), journal, source: "llm" };
 }
 
-export async function askRegime(llm: LlmClient, inputs: RegimeInputs): Promise<Regime> {
+export async function askRegime(llm: LlmClient | undefined, inputs: RegimeInputs): Promise<Regime> {
+  if (!llm) return FALLBACK("no LLM configured");
   const prompt = `Maker style: ${inputs.style}
 Recent base fees in gwei, oldest first: ${inputs.baseFeesGwei.join(", ")}
 WBT price: ${inputs.wbtPrice} USDT

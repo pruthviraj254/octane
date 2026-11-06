@@ -18,7 +18,7 @@ import {
   whitechainSepolia,
   type Quote,
 } from "@octane/sdk";
-import { claudeCli, type LlmClient } from "@octane/sdk/llm";
+import { createLlm, type LlmClient } from "@octane/sdk/llm";
 import { createPublicClient, formatEther, formatGwei, formatUnits, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { estimateL1Fee } from "viem/op-stack";
@@ -35,6 +35,7 @@ import {
   QUOTE_VALIDITY_SECONDS,
   REFRESH_MS,
   hexSetting,
+  optionalSetting,
   setting,
   type MakerConfig,
 } from "./config.ts";
@@ -87,7 +88,12 @@ const reader = arkivReader(accessKey);
 const writer = new ArkivWriter(reader, arkivWallet(accessKey, account), account.address);
 const book = new QuoteBook(reader, writer, account.address);
 
-const llm: LlmClient = claudeCli(setting("LLM_MODEL"));
+const llm: LlmClient | undefined = createLlm({
+  provider: optionalSetting("LLM_PROVIDER") || undefined,
+  apiKey: optionalSetting("ANTHROPIC_API_KEY") || undefined,
+  apiModel: optionalSetting("ANTHROPIC_MODEL") || undefined,
+  cliModel: optionalSetting("LLM_MODEL") || undefined,
+});
 
 async function readMarket(): Promise<Market> {
   const [block, tip, wbtBalance, slot0, l1Fee] = await Promise.all([

@@ -1,6 +1,7 @@
 import { CONCIERGE_SYSTEM, parseConciergeReply, parseIntent } from "@octane/sdk";
-import { claudeCli } from "@octane/sdk/llm";
+import { createLlm } from "@octane/sdk/llm";
 import { getAddress, isAddress } from "viem";
+import { serverSetting } from "@/lib/server-settings";
 
 const MAX_TEXT = 200;
 
@@ -16,14 +17,18 @@ export async function POST(request: Request) {
   }
   const text = body.text.trim();
 
-  const model = process.env.LLM_MODEL;
   let intent = parseIntent(text);
-  if (model) {
-    try {
-      intent = parseConciergeReply(await claudeCli(model, 15_000).complete(CONCIERGE_SYSTEM, text), text);
-    } catch {
-      // The plain parser's answer stands, so a payment never depends on the LLM.
-    }
+  try {
+    const llm = createLlm({
+      provider: serverSetting("LLM_PROVIDER"),
+      apiKey: serverSetting("ANTHROPIC_API_KEY"),
+      apiModel: serverSetting("ANTHROPIC_MODEL"),
+      cliModel: serverSetting("LLM_MODEL"),
+      timeoutMs: 15_000,
+    });
+    if (llm) intent = parseConciergeReply(await llm.complete(CONCIERGE_SYSTEM, text), text);
+  } catch {
+    // The plain parser's answer stands, so a payment never depends on the LLM.
   }
   if (intent.action !== "pay") return Response.json({ intent });
 
