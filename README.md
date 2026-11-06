@@ -25,14 +25,14 @@ Built at ETHGlobal Mumbai, November 2026.
 
 | Piece | State |
 |---|---|
-| Path A: frame transactions | [Admitted and mined](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), and rejected by the canonical mempool with `StorageReadNonSender` |
+| Path A: frame transactions | [Admitted and mined](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30), and rejected by the canonical mempool with `StorageReadNonSender` |
 | Path B: gasless USDT | [A payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest of three competing makers |
 | Live board on Arkiv | Three AI makers refreshing every ~10s; `/board` reads Arkiv directly |
 | AI agents | [Claude paid 3 people](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c) through the MCP server, holding zero WBT |
 | People | The wallet at `/`: "Pay Rahul 10 USDT", "Rahul ko 10 USDC bhejo", or a pasted address |
 | Merchant-pays | [The merchant covers the fee](https://explorer.testnet.whitechain.io/tx/0x7cbd94b25ecc98eefd23fddf93f501b08fa0e34e310a2ecee2e37ded2b55f4a2) with a signed opt-in |
 | Gas auctions | An agent posts a job on Arkiv, makers bid, and the [cheapest reliable bid settles](https://explorer.testnet.whitechain.io/tx/0xed2421b81b45bcf9e32bf74b2211784ac13a4f7fe9fc702a19fad7b1be80fb2e) |
-| Batched payouts | [8 people paid in one frame transaction](https://explorer.altmempool.wtf/tx/0x75002521cff97269a8925500cc83ef20c4739d0b42cbd7c9ad330124f472e0e2) for one fee |
+| Batched payouts | [8 people paid in one frame transaction](https://explorer.altmempool.wtf/tx/0x75cd006896b51874572cf7051f16ef7a707566c18ce7d58a71fa9bd3444eef68) for one fee |
 | Reputation | Fade scores from public journals; `pnpm recompute-fade` reproduces the board |
 | Griefing shield | Simulates every job, refuses repeat offenders and sybil bursts |
 
@@ -45,7 +45,7 @@ Measured, not estimated. Details are in [`docs/evidence.md`](docs/evidence.md).
 | Action | Gas | Note |
 |---|---|---|
 | Whitechain payment (relay, two transfers) | 155,926 | About 2× a plain token transfer. The maker pays it and prices it into its fee |
-| Path A sponsored payment | 327,023 | Five frames, with `pay` using 54,769 |
+| Path A sponsored payment | 327,011 | Five frames, with `pay` using 54,769 |
 | Arkiv quote refresh (patch + extension) | 93,804 | 0.000094 tGLM |
 
 At the base-fee floor a Whitechain payment costs the maker about 0.06 USDT in WBT, so makers quote from about 0.065 USDT, moving with the live WBT price and their own risk style.
@@ -57,7 +57,7 @@ Explorer links for real payments go here as they happen.
 | Network | Transaction |
 |---|---|
 | Whitechain Sepolia, USDT `0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7` | [First real payment](https://explorer.testnet.whitechain.io/tx/0xc34c96fac8183934d750a8b32a5dc138c76560ce0e6e8507f29c4c7bdb1d2424): the payer held 0 WBT before and after, and sent no transaction |
-| EF alt-mempool devnet | [Sponsored frame transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605): the sender held 0 ETH, and the maker's staked clone paid |
+| EF alt-mempool devnet | [Sponsored frame transaction](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30): the sender held 0 ETH, and the maker's staked clone paid |
 
 ## Why onchain stablecoin settlement on Whitechain
 

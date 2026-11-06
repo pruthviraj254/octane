@@ -26,8 +26,7 @@ const MAX_BLOCK_AGE_SECONDS = 120n;
 
 /**
  * Builds one sponsored Layout 1 transaction. `simulate` sends nothing and writes nothing.
- * `send` submits to both mempools and replaces the files in docs/evidence, so only use it on a
- * moving chain.
+ * `send` submits to both mempools and replaces the files in docs/evidence once it's mined.
  */
 await run(async () => {
   const client = createPublicClient({ chain: efDevnet, transport: http(env("EF_RPC_URL"), { timeout: 20_000 }) });
@@ -41,8 +40,7 @@ await run(async () => {
   const now = block.timestamp;
   const blockAge = BigInt(Math.floor(Date.now() / 1000)) - now;
   const stopped = blockAge > MAX_BLOCK_AGE_SECONDS;
-  // Nothing can be mined on a stopped chain, and `send` replaces the files in docs/evidence
-  // with whatever comes back. That once swapped the real proof for a refusal.
+  // Nothing can be mined on a stopped chain.
   if (mode === "send" && stopped) {
     throw new Error(`the devnet's latest block is ${blockAge}s old, so send is blocked. Use simulate.`);
   }
@@ -93,7 +91,6 @@ await run(async () => {
   console.log(`tx ${hash}, nonce ${nonce}, ${tx.frames.length} frames`);
 
   const simulation = (await simulateFrameTx(tx)) as Record<string, unknown>;
-  if (mode === "send") writeFileSync(new URL("patha-simulation.json", outDir), `${JSON.stringify(simulation, null, 2)}\n`);
   if (["underpay", "redirect", "forged"].includes(mode)) {
     const frames = simulation.frames as { succeeded: boolean }[] | undefined;
     console.log(`${mode}: status ${String(simulation.executionStatus)}, frames ${JSON.stringify(frames)}, error ${String(simulation.executionError)}`);
@@ -114,32 +111,36 @@ await run(async () => {
     return;
   }
 
+  let canonicalRejection: string | undefined;
   try {
     const accepted = await sendToCanonicalMempool(tx);
     console.log(`canonical mempool ACCEPTED it: ${accepted}`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    writeFileSync(new URL("patha-canonical-rejection.txt", outDir), `${hash}\n${message}\n`);
-    console.log(`canonical mempool rejected it: ${message}`);
+    canonicalRejection = error instanceof Error ? error.message : String(error);
+    console.log(`canonical mempool rejected it: ${canonicalRejection}`);
   }
 
-  try {
-    const admitted = await sendToAltMempool(tx);
-    console.log(`alt mempool admitted it: ${admitted}`);
-  } catch (error) {
-    console.log(`alt mempool rejected it: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const admitted = await sendToAltMempool(tx);
+  console.log(`alt mempool admitted it: ${admitted}`);
 
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  let mined = false;
+  for (let attempt = 0; attempt < 12 && !mined; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 3_000));
     const receipt = await client.getTransactionReceipt({ hash }).catch(() => undefined);
     if (receipt) {
       console.log(`mined in block ${receipt.blockNumber}, status ${receipt.status}, gas ${receipt.gasUsed}`);
-      break;
+      mined = receipt.status === "success";
     }
   }
   const report = await admissionReport(hash).catch((error: unknown) => String(error));
-  writeFileSync(new URL("patha-admission.json", outDir), `${JSON.stringify(report, null, 2)}\n`);
+  // The proof files change only for a mined transaction, so a failed run can't replace real evidence.
+  if (mined) {
+    writeFileSync(new URL("patha-simulation.json", outDir), `${JSON.stringify(simulation, null, 2)}\n`);
+    writeFileSync(new URL("patha-admission.json", outDir), `${JSON.stringify(report, null, 2)}\n`);
+    if (canonicalRejection) writeFileSync(new URL("patha-canonical-rejection.txt", outDir), `${hash}\n${canonicalRejection}\n`);
+  } else {
+    console.log("not mined, so docs/evidence is unchanged");
+  }
   console.log(JSON.stringify(report).slice(0, 1800));
   console.log(explorerTx(efDevnet.id, hash));
 

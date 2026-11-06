@@ -9,7 +9,7 @@ The clone's `pay` frame reads `USDC.balanceOf(sender)` during validation, and th
 | Mempool | Result |
 |---|---|
 | Canonical | Rejected: `Frame transaction validation-prefix simulation failed: StorageReadNonSender` |
-| Alternative | [Admitted and mined](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605) |
+| Alternative | [Admitted and mined](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30) |
 
 The second reason is pending load. A market maker serves many users at once, and a staked ACTIVE paymaster has no pending cap.
 
@@ -42,7 +42,7 @@ Layout 1, in the order PREFIX-010 requires:
 
 **Settle-revert risk (Layout 1).** Once `APPROVE(payment)` fires, the paymaster pays even if frame 3 later reverts, because a VERIFY frame can't see the future. A user could move their USDC between validation and execution. The damage is bounded: the balance check at validation, the gas checks on frame 3, a per-transaction cost cap, and it only touches that one maker's deposit.
 
-**Removing that risk.** We tested collecting the fee in a `pre_verify` frame. EIP-3009 can't work here, because USDC's authorisation check uses `TIMESTAMP`, which is banned even for staked entities, and its nonce write isn't sender-associated. `transferFrom` after a one-time approval does work. [It was admitted and mined](https://explorer.altmempool.wtf/tx/0x937869a23be5171336a817cb2fd40b7c45bc65045e9aab919684c2c8029d5ff2), with the fee landing on the staked paymaster and `pay` checking the frame's status. It needs that one approval transaction per sender and contract, which the market can sponsor. Octane ships Layout 1 and keeps this as the upgrade path. See [`PreVerifyProbe.sol`](../contracts/src/pathA/experiments/PreVerifyProbe.sol).
+**Removing that risk.** We tested collecting the fee in a `pre_verify` frame. EIP-3009 can't work here, because USDC's authorisation check uses `TIMESTAMP`, which is banned even for staked entities, and its nonce write isn't sender-associated. `transferFrom` after a one-time approval does work. [It was admitted and mined](https://explorer.altmempool.wtf/tx/0x7bf47728ecfbe341db89203da3e081d1b05acc652f263de1e93710a2c6b0402b), with the fee landing on the staked paymaster and `pay` checking the frame's status. It needs that one approval transaction per sender and contract, which the market can sponsor. Octane ships Layout 1 and keeps this as the upgrade path. See [`PreVerifyProbe.sol`](../contracts/src/pathA/experiments/PreVerifyProbe.sol).
 
 **Mass invalidation.** Reading shared state means one USDC transfer can invalidate a pending sponsored transaction. Per-maker clones keep the blast radius to one maker, staking gives the mempool reputation to act on, and the settled fee repays honest work. A paymaster-balance reservation like the canonical paymaster's would suit this design well.
 

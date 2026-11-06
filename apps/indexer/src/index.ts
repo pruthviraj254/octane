@@ -181,8 +181,10 @@ async function indexFills(state: State): Promise<State> {
   if (whitechainFrom <= whitechainTo) await writeFills(await whitechainFills(whitechainFrom, whitechainTo));
   const next: State = { ...state, whitechainBlock: whitechainTo.toString() };
 
-  if (efTip !== undefined && BigInt(state.efBlock) < efTip) {
-    await writeFills(await devnetFills(BigInt(state.efBlock) + 1n, efTip));
+  // A devnet reset restarts its block numbers, so a saved position past the tip means start over.
+  const efFrom = efTip !== undefined && BigInt(state.efBlock) > efTip ? 0n : BigInt(state.efBlock);
+  if (efTip !== undefined && efFrom < efTip) {
+    await writeFills(await devnetFills(efFrom + 1n, efTip));
     next.efBlock = efTip.toString();
   }
   return next;

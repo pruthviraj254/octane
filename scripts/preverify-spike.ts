@@ -138,8 +138,7 @@ await run(async () => {
     outcome = `rejected: ${error instanceof Error ? error.message : String(error)}`;
   }
   console.log(`alt mempool ${outcome}`);
-  await new Promise((resolve) => setTimeout(resolve, 12_000));
-  const receipt = await client.getTransactionReceipt({ hash }).catch(() => undefined);
+  const receipt = await client.waitForTransactionReceipt({ hash, timeout: 90_000 }).catch(() => undefined);
   console.log(`receipt ${receipt ? `${receipt.status} gas ${receipt.gasUsed}` : "none"}`);
   writeFileSync(
     new URL("../docs/evidence/preverify-spike.json", import.meta.url),

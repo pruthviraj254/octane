@@ -72,7 +72,7 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 
 ## EF alt-mempool devnet
 
-**First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
+**First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30), mined with status success, 327,011 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
 
 The same signed transaction went to both mempools:
 | Mempool | Result |
@@ -91,13 +91,15 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 | Fee frame pays someone else | `0x590a777c` `BadFeeFrame()` |
 | Quote signature from another key | `0x35abf5ae` `BadMakerSignature()` |
 
-**Batched payout:** an agent paid 8 people in [one frame transaction](https://explorer.altmempool.wtf/tx/0x75002521cff97269a8925500cc83ef20c4739d0b42cbd7c9ad330124f472e0e2) for one 0.05 USDC fee. Each recipient's balance was checked onchain afterwards.
+**Batched payout:** an agent paid 8 people in [one frame transaction](https://explorer.altmempool.wtf/tx/0x75cd006896b51874572cf7051f16ef7a707566c18ce7d58a71fa9bd3444eef68) for one 0.05 USDC fee. Each recipient's balance was checked onchain afterwards.
 
-**Fee collected during validation (`pre_verify` spike):** [transaction](https://explorer.altmempool.wtf/tx/0x937869a23be5171336a817cb2fd40b7c45bc65045e9aab919684c2c8029d5ff2), admitted and mined. After a one-time approval, a staked paymaster pulled 0.05 USDC with `transferFrom` in a `pre_verify` frame, then approved payment after checking that frame's status. The sender held 0 ETH. EIP-3009 can't do this, because USDC's check uses `TIMESTAMP`. Octane still ships Layout 1; this is the upgrade path. Report: [`docs/evidence/preverify-spike.json`](evidence/preverify-spike.json).
+**Fee collected during validation (`pre_verify` spike):** [transaction](https://explorer.altmempool.wtf/tx/0x7bf47728ecfbe341db89203da3e081d1b05acc652f263de1e93710a2c6b0402b), admitted and mined. After a one-time approval, a staked paymaster pulled 0.05 USDC with `transferFrom` in a `pre_verify` frame, then approved payment after checking that frame's status. The sender held 0 ETH. EIP-3009 can't do this, because USDC's check uses `TIMESTAMP`. Octane still ships Layout 1; this is the upgrade path. Report: [`docs/evidence/preverify-spike.json`](evidence/preverify-spike.json).
 
-**Deployed:** implementation `0xa8face600456e543f968e5a828f94b8ee9178d99`, factory `0xa8de82d087393dd10ff4e9af22ded8926d48dbe2`, Maker Cautious's clone `0xD31E030E11B4687e1B3EA2C4f7326f4C589C7b58` (staked 0.012 ETH). The devnet can reset; `scripts/setup-devnet.ts` rebuilds all of this.
+**Deployed:** implementation `0x87efd04057930814ff3f5c0f7af3e4291bc6fef6`, factory `0xa8face600456e543f968e5a828f94b8ee9178d99`, Maker Cautious's clone `0xfff46438127E7DB708515fdDf46F9Aed002d6c80` (staked 0.012 ETH). The devnet can reset; `scripts/setup-devnet.ts` rebuilds all of this.
 
-**Person paying from the wallet in Hinglish:** typed "Rahul ko 0.25 USDC bhejo", confirmed, and a [Layout 1 frame transaction](https://explorer.altmempool.wtf/tx/0x70c66d4c0048d93ed4dbfce1e60bce89e721ef4f5251f10b77686e31b70ce73b) mined with status success, 131,159 gas. The embedded wallet held no ETH.
+**The devnet reset on Nov 6.** It stopped at block 408262 and came back from block 0, which erased every earlier transaction. `scripts/setup-devnet.ts` rebuilt Octane in one run, and the links above are all from the new chain. Tampered transactions were also resubmitted for real, and the alternative mempool refused each one at frame 2.
+
+**Person paying from the wallet in Hinglish:** typed "Rahul ko 0.25 USDC bhejo", confirmed, and a [Layout 1 frame transaction](https://explorer.altmempool.wtf/tx/0x4edf6ca5712f4adaa62f02c7f15774b88f31113e00417685a02d3ed6a57a52a4) mined with status success, 131,159 gas. The embedded wallet held no ETH.
 
 **Devnet outage, Nov 6:** the EF devnet stopped producing blocks at block 408262, around 04:28 IST, and Maker Cautious went on advertising Path A quotes on a chain that couldn't settle them. Makers now check the latest block's age and pause Path A quotes when it's over 120s old.
 

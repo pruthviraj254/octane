@@ -10,7 +10,7 @@ import { EASE } from "./providers";
 export function Ticker({ value, dimFrom }: { value: string; dimFrom?: number }) {
   const characters = [...value];
   return (
-    <span className="inline-flex tabular-nums">
+    <span role="img" aria-label={value} className="inline-flex tabular-nums">
       {characters.map((character, index) => (
         <span
           key={characters.length - index}

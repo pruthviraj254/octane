@@ -16,7 +16,13 @@ const STAKE = parseEther("0.012");
 const MAX_GAS_PRICE = parseGwei("3");
 const PAYER_USDC = parseUnits("50", 6);
 
-/** EF publishes this key for the devnet. It's read at runtime and never saved. */
+const DEPLOYER_FUNDING = parseEther("0.2"); // Includes what the pre_verify spike stakes and funds.
+const MAKER_FUNDING = parseEther("0.25");
+/** A transfer to a brand-new account costs extra state gas on this network. */
+const NEW_ACCOUNT_GAS = 250_000n;
+
+/** EF publishes these keys for the devnet. They're read at runtime and never saved. */
+const GENESIS = "0x5544596212F91984C986A919C8026DF0576816f9";
 const USDC_DEPLOYER = "0xa071C572d39ef9C2f6e09450570bC36A85a5CDc0";
 const PUBLISHED_KEYS_URL =
   "https://raw.githubusercontent.com/forshtat/mempool-workshop-sidecar/HEAD/deploy/devnet/devnet-readme.md";
@@ -27,12 +33,12 @@ function artifact(name: string): { abi: Abi; bytecode: Hex } {
   return { abi: json.abi, bytecode: json.bytecode.object };
 }
 
-async function publishedUsdcDeployerKey(): Promise<Hex> {
+async function publishedKey(address: Address): Promise<Hex> {
   const response = await fetch(PUBLISHED_KEYS_URL);
   if (!response.ok) throw new Error(`couldn't read the sidecar repo: ${response.status}`);
   const keys = (await response.text()).match(/0x[0-9a-fA-F]{64}/g) ?? [];
-  const key = keys.find((candidate) => privateKeyToAccount(candidate as Hex).address === USDC_DEPLOYER);
-  if (!key) throw new Error("the USDC deployer key isn't in the sidecar readme");
+  const key = keys.find((candidate) => privateKeyToAccount(candidate as Hex).address === address);
+  if (!key) throw new Error(`the key for ${address} isn't in the sidecar readme`);
   return key as Hex;
 }
 
@@ -49,6 +55,15 @@ await run(async () => {
     console.log(`${label}: ${hash} (gas ${receipt.gasUsed})`);
     return receipt;
   };
+
+  // A reset leaves every wallet empty, so top up the two that send transactions here.
+  const fund = async (label: string, to: Address, amount: bigint) => {
+    if ((await client.getBalance({ address: to })) >= amount / 2n) return;
+    const shared = createWalletClient({ chain: efDevnet, transport, account: privateKeyToAccount(await publishedKey(GENESIS)) });
+    await confirm(`fund ${label}`, await shared.sendTransaction({ to, value: amount, gas: NEW_ACCOUNT_GAS, ...LEGACY }));
+  };
+  await fund("deployer", deployer.account.address, DEPLOYER_FUNDING);
+  await fund("Maker Cautious", maker.account.address, MAKER_FUNDING);
 
   const hasCode = async (address: string | undefined) =>
     Boolean(address) && ((await client.getCode({ address: address as Address })) ?? "0x") !== "0x";
@@ -148,7 +163,7 @@ await run(async () => {
 
   const balance = () => client.readContract({ address: EF_USDC, abi: erc20Abi, functionName: "balanceOf", args: [payer] });
   if ((await balance()) < PAYER_USDC / 2n) {
-    const shared = createWalletClient({ chain: efDevnet, transport, account: privateKeyToAccount(await publishedUsdcDeployerKey()) });
+    const shared = createWalletClient({ chain: efDevnet, transport, account: privateKeyToAccount(await publishedKey(USDC_DEPLOYER)) });
     const hash = await shared.writeContract({
       address: EF_USDC,
       abi: erc20Abi,
