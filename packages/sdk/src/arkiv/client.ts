@@ -8,6 +8,11 @@ export function arkivReader(accessKey: string) {
   return createPublicClient({ chain: rabdi({ accessKey }), transport: transport(), pollingInterval: 1_000 });
 }
 
+/** Reads through a server that holds the access key, so the key never reaches a browser. */
+export function arkivReaderAt(url: string) {
+  return createPublicClient({ chain: rabdi({ accessKey: "held-by-the-server" }), transport: http(url, { timeout: 15_000, retryCount: 1 }), pollingInterval: 1_000 });
+}
+
 export function arkivWallet(accessKey: string, account: Account) {
   return createWalletClient({ chain: rabdi({ accessKey }), transport: transport(), account, pollingInterval: 1_000 });
 }

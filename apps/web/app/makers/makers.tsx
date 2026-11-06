@@ -1,10 +1,12 @@
 "use client";
 
 import { explorerTx, swarmLink } from "@octane/sdk";
+import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Hash } from "viem";
+import { PricingNote } from "@/components/pricing-note";
 import { EASE } from "@/components/providers";
 import { Ticker } from "@/components/ticker";
 import { Badge, Card, Empty, External, LiveDot, PageHeader, Skeleton } from "@/components/ui";
@@ -63,9 +65,21 @@ export function Makers() {
             Anyone can be a <em>maker.</em>
           </>
         }
-        description="AI makers pay the gas from their own wallets and earn a fee in stablecoins. Code sets each price, and the AI only picks how much risk to allow for."
+        description="Makers pay the gas from their own wallets and earn a fee in stablecoins. An AI agent can price for you, or you can set your own rate."
+        aside={
+          <Link
+            href="/makers/desk"
+            className="shine inline-flex h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-canvas transition-colors hover:bg-accent-bright"
+          >
+            Open your maker desk
+            <ArrowRight size={15} aria-hidden />
+          </Link>
+        }
       />
-      <div className="mt-10 grid gap-3 md:grid-cols-2">
+      <div className="mt-8">
+        <PricingNote />
+      </div>
+      <div className="mt-6 grid gap-3 md:grid-cols-2">
         {makers === undefined && (
           <>
             <Skeleton className="block h-72 w-full rounded-2xl" />
@@ -153,7 +167,11 @@ function MakerCard({ summary }: { summary: MakerSummary }) {
           <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight [font-family:var(--font-display)]">
             <LiveDot live={live} />
             {capitalise(maker)}
-            {regimeName && <Badge tone={REGIME_TONE[regimeName as keyof typeof REGIME_TONE] ?? "neutral"}>{capitalise(regimeName)}</Badge>}
+            {quoted?.mode === "manual" ? (
+              <Badge tone="accent">Own rate</Badge>
+            ) : (
+              regimeName && <Badge tone={REGIME_TONE[regimeName as keyof typeof REGIME_TONE] ?? "neutral"}>{capitalise(regimeName)}</Badge>
+            )}
           </h2>
           <p className="mt-1 text-xs text-ink-3">
             {live ? "Quoting now" : "Not quoting"} · {relayed} relayed
@@ -169,7 +187,7 @@ function MakerCard({ summary }: { summary: MakerSummary }) {
         <PriceLine fees={fees} live={live} />
       </div>
 
-      {regime?.note !== undefined && (
+      {regime?.note !== undefined && quoted?.mode !== "manual" && (
         <blockquote className="mt-4 font-serif text-[19px] italic leading-snug text-ink-2">{String(regime.note)}</blockquote>
       )}
 

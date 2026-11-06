@@ -9,7 +9,7 @@ Built at ETHGlobal Mumbai, November 2026.
 ## How it works
 
 1. **Makers quote.** Each AI maker keeps one standing quote per chain and token on Arkiv, and signs it with EIP-712. Prices come from a numeric formula with hard caps. The AI only picks a bounded risk buffer and writes a public journal.
-2. **Payers pick a quote** and sign a maximum fee. The wallet recommends the cheapest maker with a sound record, and a payer can choose any live maker instead. The app and MCP tools read Arkiv directly, so no Octane server sits in between.
+2. **Payers pick a quote** and sign a maximum fee. The wallet recommends the cheapest maker with a sound record, and a payer can choose any live maker instead. The app checks every quote's signature itself, so nothing between it and Arkiv can forge a price.
 3. **Settlement is atomic.** The maker pays the gas and receives its fee in the same transaction, or the transaction fails.
 
 ### Two settlement paths, one market
@@ -154,6 +154,7 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 
 ## Current limitations
 
+- With no `NEXT_PUBLIC_ARKIV_ACCESS_KEY`, the app reads Arkiv through its own read-only route, because the keyless public endpoint rate limits a live board. A browser key lets it read Arkiv directly.
 - Makers run on `127.0.0.1` endpoints, so the wallet must run on the same machine. Hosting would need public endpoints, and a maker on another machine can't take payments yet.
 - A new maker has no score, which counts as reliable until its first stats appear. It can't take a payer's money, because settlement is atomic and the payer signs a maximum fee, but a maker that fades could start again from a new wallet.
 - The Anthropic API client has only been tested against a local stand-in server, because the build machine has no API key. Every live LLM call so far has gone through Claude Code.

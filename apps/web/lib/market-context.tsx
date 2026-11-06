@@ -26,6 +26,11 @@ function usePolledBoard(chain: Chain): Snapshot {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      // A hidden tab has nobody watching it, so it shouldn't spend read quota.
+      if (document.hidden) {
+        timer = setTimeout(poll, POLL_MS);
+        return;
+      }
       try {
         const board = await getQuotes(getMarket(), chain);
         const rows = await Promise.all(

@@ -3,6 +3,7 @@
 import { MotionConfig } from "motion/react";
 import { useEffect, type ReactNode } from "react";
 import { MarketProvider } from "@/lib/market-context";
+import { WalletSessionProvider } from "@/lib/wallet-session";
 
 export const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -25,7 +26,9 @@ export function Providers({ children }: { children: ReactNode }) {
   useSpotlight();
   return (
     <MotionConfig reducedMotion="user">
-      <MarketProvider>{children}</MarketProvider>
+      <MarketProvider>
+        <WalletSessionProvider>{children}</WalletSessionProvider>
+      </MarketProvider>
     </MotionConfig>
   );
 }

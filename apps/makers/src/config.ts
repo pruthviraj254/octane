@@ -88,7 +88,7 @@ export function hexSetting(name: string): `0x${string}` {
 
 /**
  * Joining needs no entry in this file: `maker nova` runs on MAKER_NOVA_* settings alone, which
- * scripts/new-maker.ts creates. Path A isn't offered here, because it also needs a staked clone.
+ * scripts/new-maker.ts creates. It quotes on Path A once OCTANE_CLONE_NOVA names a staked clone.
  */
 export function findMaker(id: string): MakerConfig | undefined {
   const listed = Object.values<MakerConfig>(MAKERS).find((maker) => maker.id === id);
@@ -102,6 +102,6 @@ export function findMaker(id: string): MakerConfig | undefined {
     spread: spread ? BigInt(spread) : DEFAULT_SPREAD,
     skewsInventory: false,
     targetWbt: 0n,
-    quotesPathA: false,
+    quotesPathA: Boolean(optionalSetting(`OCTANE_CLONE_${id.toUpperCase()}`)),
   };
 }

@@ -8,6 +8,7 @@ import { useMarket } from "@/lib/market-context";
 import { money } from "@/lib/format";
 import { EASE } from "./providers";
 import { LiveDot } from "./ui";
+import { WalletButton } from "./wallet-button";
 
 const LINKS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/", label: "Wallet", icon: Wallet },
@@ -30,7 +31,7 @@ function LiveStatus() {
   const { rows, status } = useMarket().whitechain;
   const best = rows[0];
   return (
-    <span className="flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-xs text-ink-2 backdrop-blur-md">
+    <span className="hidden items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-xs text-ink-2 backdrop-blur-md xl:flex">
       <LiveDot live={status === "live" && rows.length > 0} />
       <span className="tabular-nums">
         {status === "loading" ? "Connecting" : best ? `${rows.length} makers · from ${money(best.quote.fee)}` : "No live makers"}
@@ -70,8 +71,9 @@ export function Nav() {
             })}
           </div>
 
-          <div className="justify-self-end">
+          <div className="flex items-center gap-2 justify-self-end">
             <LiveStatus />
+            <WalletButton />
           </div>
         </nav>
       </header>

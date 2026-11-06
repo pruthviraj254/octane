@@ -1,12 +1,17 @@
-import { arkivReader, whitechainSepolia, type MarketConfig } from "@octane/sdk";
+import { arkivReader, arkivReaderAt, whitechainSepolia, type MarketConfig } from "@octane/sdk";
 import { createPublicClient, http, type Address } from "viem";
 
 let market: MarketConfig | undefined;
 
-/** Reads go straight from the browser to Arkiv, with no Octane server in between. */
+/**
+ * With a browser key, reads go straight to Arkiv. Without one they pass through this app's
+ * read-only route, because the keyless public endpoint rate limits a live board within seconds.
+ * The browser checks every quote's signature either way, so the route can't forge a price.
+ */
 export function getMarket(): MarketConfig {
+  const browserKey = process.env.NEXT_PUBLIC_ARKIV_ACCESS_KEY;
   market ??= {
-    reader: arkivReader(process.env.NEXT_PUBLIC_ARKIV_ACCESS_KEY ?? ""),
+    reader: browserKey ? arkivReader(browserKey) : arkivReaderAt(`${window.location.origin}/api/arkiv`),
     relay: process.env.NEXT_PUBLIC_OCTANE_RELAY as Address,
     factory: process.env.NEXT_PUBLIC_OCTANE_FACTORY as Address,
   };

@@ -30,7 +30,6 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import type { PrivateKeyAccount } from "viem/accounts";
 import { Corona } from "@/components/corona";
 import { EASE } from "@/components/providers";
 import { Ticker } from "@/components/ticker";
@@ -38,7 +37,7 @@ import { Badge, Button, Detail, External, Skeleton } from "@/components/ui";
 import { capitalise, money, shortAddress } from "@/lib/format";
 import { INDEXER, MERCHANT, getMarket, whitechain } from "@/lib/market";
 import { useMarket } from "@/lib/market-context";
-import { loadWallet } from "@/lib/wallet";
+import { useWalletSession } from "@/lib/wallet-session";
 
 const DECIMALS = 6;
 const REFRESH_MS = 5_000;
@@ -88,16 +87,15 @@ const EXAMPLES = ["Pay Rahul 1 USDT", "Rahul ko 1 USDT bhejo"];
 const STEP = "animate-rise rounded-2xl bg-raised/50 p-4";
 
 export function Wallet() {
-  const [wallet, setWallet] = useState<{ key: Hex; account: PrivateKeyAccount } | undefined>();
+  const { account, address, builtIn, connected } = useWalletSession();
   const [balances, setBalances] = useState<Balances | undefined>();
   const [text, setText] = useState("");
   const [step, setStep] = useState<Step>({ kind: "idle" });
   const [settled, setSettled] = useState(0);
   const { rows } = useMarket().whitechain;
 
-  useEffect(() => setWallet(loadWallet()), []);
-
-  const address = wallet?.account.address;
+  // A different wallet means different balances, so never show the last one's.
+  useEffect(() => setBalances(undefined), [address]);
 
   const refresh = useCallback(async () => {
     if (!address) return;
@@ -155,6 +153,12 @@ export function Wallet() {
       }
 
       const chain: Chain = body.intent.token === "USDC" ? "ef-devnet" : "whitechain";
+      if (chain === "ef-devnet" && connected) {
+        return setStep({
+          kind: "error",
+          message: "USDC settles with an EIP-8141 frame transaction, which browser wallets can't sign yet. Pay in USDT, or disconnect to use the built-in wallet.",
+        });
+      }
       const { quotes } = await getQuotes(getMarket(), chain);
       if (quotes.length === 0) throw new Error("No maker is quoting right now. Try again in a moment.");
 
@@ -219,8 +223,13 @@ export function Wallet() {
     };
   }
 
+  function requireBuiltIn() {
+    if (!builtIn) throw new Error("The built-in wallet hasn't loaded yet.");
+    return builtIn;
+  }
+
   async function pay(plan: Plan, merchantPays: boolean, entry: BoardQuote) {
-    if (!wallet) return;
+    if (!account) return;
     setStep({ kind: "paying", plan });
     const maxFee = (entry.quote.fee * FEE_TOLERANCE_PERCENT) / 100n;
     // Only an override binds the payment to one maker. The default can still fall back.
@@ -229,7 +238,7 @@ export function Wallet() {
       const result =
         plan.chain === "whitechain"
           ? await payOnWhitechain(getMarket(), {
-              payer: wallet.account,
+              payer: account,
               to: plan.to,
               amount: plan.amount,
               maxFee,
@@ -238,8 +247,8 @@ export function Wallet() {
               ...(merchantPays ? { merchantOptIn: await merchantOptIn(plan.amount) } : {}),
             })
           : await payOnEfDevnet(getMarket(), {
-              sender: wallet.account.address,
-              privateKey: wallet.key,
+              sender: requireBuiltIn().account.address,
+              privateKey: requireBuiltIn().key,
               payments: [{ to: plan.to, amount: plan.amount }],
               maxFee,
               maxFeePerGas: parseGwei("2"),
@@ -255,6 +264,7 @@ export function Wallet() {
   }
 
   const busy = step.kind === "thinking" || step.kind === "paying";
+  const empty = connected !== undefined && balances !== undefined && balances.usdt === 0n;
 
   return (
     <main className="relative">
@@ -273,7 +283,12 @@ export function Wallet() {
 
         <section className="min-w-0">
           <div className="spot rounded-3xl border border-line-strong bg-surface/85 p-5 shadow-[0_40px_90px_-40px_rgb(0_0_0/0.95)] backdrop-blur-md sm:p-6">
-            <p className="text-sm text-ink-3">Balance</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-ink-3">Balance</p>
+              <p className="text-xs text-ink-3" data-testid="wallet-kind">
+                {connected ? connected.wallet.name : "Built-in wallet"}
+              </p>
+            </div>
             <p className="figure mt-2 text-[52px] leading-none sm:text-6xl" data-testid="usdt-balance">
               {balances ? <Balance value={balances.usdt} /> : <Skeleton className="h-12 w-44 align-bottom" />}{" "}
               <span className="font-sans text-lg font-medium tracking-normal text-ink-3">USDT</span>
@@ -283,6 +298,12 @@ export function Wallet() {
               Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "–"} · Transactions you've sent:{" "}
               {balances ? balances.transactionsSent : "–"}
             </p>
+
+            {empty && (
+              <p className="mt-3 rounded-xl bg-caution-soft px-3 py-2 text-[13px] leading-relaxed text-caution">
+                This wallet holds no USDT on Whitechain Sepolia yet. Send some to it, and it can pay with no gas token.
+              </p>
+            )}
 
             <form onSubmit={submit} className="mt-6">
               <label htmlFor="request" className="sr-only">

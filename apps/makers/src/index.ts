@@ -39,6 +39,7 @@ import {
   optionalSetting,
   setting,
 } from "./config.ts";
+import { ControlFile, claimProcess, feeFor, pastLimit, releaseProcess, signedUntil, type Control } from "./control.ts";
 import { Journal } from "./journal.ts";
 import { JournalPublisher } from "./publish.ts";
 import { priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
@@ -78,6 +79,8 @@ const relay = hexSetting("OCTANE_RELAY");
 const endpoint = setting(`${config.envPrefix}_ENDPOINT`);
 const accessKey = setting("ARKIV_ACCESS_KEY");
 const journal = new Journal(config.id);
+const control = new ControlFile(config.id);
+const cloneSetting = `OCTANE_CLONE_${config.id.toUpperCase()}`;
 
 const { client, wallet } = whitechainClients(
   [setting("WHITECHAIN_RPC_URL"), setting("WHITECHAIN_RPC_FALLBACK_URL")],
@@ -183,7 +186,7 @@ let cloneBacked: { ok: boolean; at: number } | undefined;
 
 function watchClone(): void {
   if (!config!.quotesPathA) return;
-  const clone = hexSetting("OCTANE_CLONE_CAUTIOUS");
+  const clone = hexSetting(cloneSetting);
   void (async () => {
     while (!stopping) {
       try {
@@ -201,18 +204,18 @@ function watchClone(): void {
 }
 
 /** A Path A quote, if this maker offers one and its clone can back it. */
-async function pathAQuote(seq: bigint): Promise<StandingQuote | undefined> {
+async function pathAQuote(seq: bigint, wanted: Control): Promise<StandingQuote | undefined> {
   if (!config!.quotesPathA) return undefined;
   if (!cloneBacked?.ok || Date.now() - cloneBacked.at > MAX_CLONE_CHECK_AGE_MS) return undefined;
-  const clone = hexSetting("OCTANE_CLONE_CAUTIOUS");
+  const clone = hexSetting(cloneSetting);
   const quote: Quote = {
     maker: account.address,
     chainId: BigInt(efDevnet.id),
     settlement: clone,
     token: EF_USDC,
     maxGas: PATH_A_MAX_GAS,
-    fee: PATH_A_FEE,
-    validUntil: seq + QUOTE_VALIDITY_SECONDS,
+    fee: feeFor(wanted, PATH_A_FEE),
+    validUntil: signedUntil(wanted, seq + QUOTE_VALIDITY_SECONDS),
     nonce: seq,
   };
   return { quote, sig: await signQuote(account, quote), style: config!.id, seq };
@@ -223,18 +226,22 @@ async function tick(): Promise<void> {
   recentBaseFees.push(market.gasPrice);
   if (recentBaseFees.length > 12) recentBaseFees.shift();
 
+  const seq = BigInt(Math.floor(Date.now() / 1000));
+  const wanted = control.read();
   const lowInventory = market.wbtBalance < MIN_INVENTORY_WBT;
-  if (lowInventory || regime.name === "shock") {
+  const shock = wanted.mode === "auto" && regime.name === "shock";
+  const timeUp = pastLimit(wanted, seq);
+  if (lowInventory || shock || timeUp) {
     if (onBoard) {
       await book.withdraw();
       onBoard = false;
-      journal.write("withdrew", { reason: lowInventory ? "low inventory" : "shock regime", wbt: market.wbtBalance });
+      const reason = lowInventory ? "low inventory" : timeUp ? "time limit reached" : "shock regime";
+      journal.write("withdrew", { reason, wbt: market.wbtBalance });
     }
     return;
   }
 
-  const fee = priceFee(config!, market, regime.bufferBps);
-  const seq = BigInt(Math.floor(Date.now() / 1000));
+  const fee = feeFor(wanted, priceFee(config!, market, regime.bufferBps));
   const quote: Quote = {
     maker: account.address,
     chainId: BigInt(whitechainSepolia.id),
@@ -242,11 +249,11 @@ async function tick(): Promise<void> {
     token: WHITECHAIN_USDT,
     maxGas: MAX_GAS,
     fee,
-    validUntil: seq + QUOTE_VALIDITY_SECONDS,
+    validUntil: signedUntil(wanted, seq + QUOTE_VALIDITY_SECONDS),
     nonce: seq,
   };
   const entries: StandingQuote[] = [{ quote, sig: await signQuote(account, quote), style: config!.id, seq }];
-  const pathA = await pathAQuote(seq);
+  const pathA = await pathAQuote(seq, wanted);
   if (pathA) entries.push(pathA);
   const result = await book.refresh(entries);
   if (stopping) return;
@@ -254,6 +261,8 @@ async function tick(): Promise<void> {
   journal.write(result.status === "sent" ? "quoted" : "skipped", {
     seq,
     fee,
+    mode: wanted.mode,
+    until: wanted.until,
     pathA: Boolean(pathA),
     regime: regime.name,
     bufferBps: regime.bufferBps,
@@ -269,6 +278,7 @@ async function tick(): Promise<void> {
 async function shutdown(): Promise<void> {
   if (stopping) return;
   stopping = true;
+  releaseProcess(config!.id);
   server.close();
   try {
     await book.withdraw();
@@ -307,6 +317,7 @@ process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 
 journal.write("started", { address: account.address, endpoint, spread: config.spread });
+claimProcess(config.id);
 watchClone();
 
 // Auctions: bid a little under the board price, because a batch is guaranteed work.
@@ -318,14 +329,17 @@ const auctionsWon = new Set<string>();
 
 async function bidOnAuctions(): Promise<void> {
   const market = lastMarket?.market;
-  if (!market || regime.name === "shock" || market.wbtBalance < MIN_INVENTORY_WBT) return;
+  const wanted = control.read();
+  const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+  const shock = wanted.mode === "auto" && regime.name === "shock";
+  if (!market || shock || pastLimit(wanted, nowSeconds) || market.wbtBalance < MIN_INVENTORY_WBT) return;
 
   for (const request of await fetchOpenRequests(reader, BigInt(whitechainSepolia.id))) {
     if (bidsPlaced.has(request.key)) continue;
     bidsPlaced.add(request.key);
 
     const discounted = (priceFee(config!, market, regime.bufferBps) * BID_DISCOUNT_BPS) / 10_000n;
-    const fee = discounted < MIN_FEE ? MIN_FEE : discounted;
+    const fee = feeFor(wanted, discounted < MIN_FEE ? MIN_FEE : discounted);
     if (fee > request.maxFee) {
       journal.write("auction-passed", { request: request.key, fee, maxFee: request.maxFee });
       continue;
@@ -338,7 +352,7 @@ async function bidOnAuctions(): Promise<void> {
       token: WHITECHAIN_USDT,
       maxGas: MAX_GAS,
       fee,
-      validUntil: now + QUOTE_VALIDITY_SECONDS,
+      validUntil: signedUntil(wanted, now + QUOTE_VALIDITY_SECONDS),
       nonce: now,
     };
     const result = await placeBid(writer, { request, quote, sig: await signQuote(account, quote), style: config!.id });
@@ -386,7 +400,8 @@ void (async () => {
 void (async () => {
   while (!stopping) {
     try {
-      await updateRegime(await currentMarket());
+      // A person setting their own price has no use for the agent's risk call.
+      if (control.read().mode === "auto") await updateRegime(await currentMarket());
     } catch (error) {
       journal.write("regime-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
     }

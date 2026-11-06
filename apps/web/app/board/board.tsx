@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { PricingNote } from "@/components/pricing-note";
 import { Badge, Empty, LiveDot, PageHeader, SectionTitle, Skeleton, Stat } from "@/components/ui";
 import { EASE } from "@/components/providers";
 import { Ticker } from "@/components/ticker";
@@ -46,6 +47,10 @@ export function Board() {
 
       <Market title="Whitechain Sepolia" symbol="USDT" snapshot={whitechain} />
       <Market title="EF alt-mempool devnet" symbol="USDC" snapshot={market["ef-devnet"]} />
+
+      <div className="mt-10">
+        <PricingNote />
+      </div>
     </section>
   );
 }
