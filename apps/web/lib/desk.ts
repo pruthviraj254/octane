@@ -21,6 +21,8 @@ export interface Control {
   mode: "auto" | "manual";
   fee?: string;
   until?: number;
+  /** This maker has an AI agent. In manual mode, its owner is overriding it. */
+  agent?: boolean;
 }
 
 export interface DeskInfo {
@@ -43,6 +45,18 @@ export interface DeskInfo {
   withdrew: string | undefined;
   /** The agent is pricing on its fallback buffer, because its last AI call failed. */
   aiUnavailable: boolean;
+  /** The working behind the formula's latest price, in USDT base units. */
+  formula: string | undefined;
+  gasCost: string | undefined;
+  bufferBps: string | undefined;
+  spread: string | undefined;
+  aiNote: string | undefined;
+}
+
+/** The same test the makers use: a provider, an API key, or a Claude Code model. */
+export function aiConfigured(): boolean {
+  const env = settings();
+  return Boolean(env.LLM_PROVIDER || env.ANTHROPIC_API_KEY || env.LLM_MODEL);
 }
 
 function settings(): Record<string, string | undefined> {
@@ -127,6 +141,7 @@ export async function listDesks(): Promise<DeskInfo[]> {
       const quoted = lines.findLast((line) => line.event === "quoted");
       const lastEvent = lines.findLast((line) => line.event === "quoted" || line.event === "withdrew");
       const regime = lines.findLast((line) => line.event === "regime");
+      const started = lines.findLast((line) => line.event === "started");
       const live = quoted?.ts !== undefined && lastEvent?.event === "quoted" && Date.now() / 1000 - Number(quoted.ts) < LIVE_WITHIN_SECONDS;
       return {
         name,
@@ -144,6 +159,11 @@ export async function listDesks(): Promise<DeskInfo[]> {
         relayed: lines.filter((line) => line.event === "relayed").length,
         withdrew: lastEvent?.event === "withdrew" ? String(lastEvent.reason) : undefined,
         aiUnavailable: live && regime?.source === "fallback",
+        formula: quoted?.formula === undefined ? undefined : String(quoted.formula),
+        gasCost: quoted?.gasCost === undefined ? undefined : String(quoted.gasCost),
+        bufferBps: quoted?.bufferBps === undefined ? undefined : String(quoted.bufferBps),
+        spread: started?.spread === undefined ? env[`${prefix}_SPREAD`] : String(started.spread),
+        aiNote: regime?.note === undefined ? undefined : String(regime.note),
       };
     }),
   );

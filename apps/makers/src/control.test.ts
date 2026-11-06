@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_FEE, MIN_FEE } from "./config.ts";
-import { TickWatchdog, feeFor, parseControl, pastLimit, signedUntil } from "./control.ts";
+import { TickWatchdog, agentActive, feeFor, parseControl, pastLimit, signedUntil } from "./control.ts";
 
 describe("parseControl", () => {
   it("reads a manual price and time limit", () => {
@@ -16,9 +16,29 @@ describe("parseControl", () => {
   });
 });
 
+describe("agentActive", () => {
+  it("runs for an agent that's pricing", () => {
+    expect(agentActive({ mode: "auto" })).toBe(true);
+  });
+
+  it("keeps running while a person overrides it", () => {
+    expect(agentActive(parseControl('{"mode":"manual","fee":"90000","agent":true}') as never)).toBe(true);
+  });
+
+  it("never runs for a maker with no agent", () => {
+    expect(agentActive(parseControl('{"mode":"manual","fee":"90000"}') as never)).toBe(false);
+    expect(agentActive(parseControl('{"mode":"manual","fee":"90000","agent":false}') as never)).toBe(false);
+  });
+});
+
 describe("feeFor", () => {
   it("uses the formula for an agent", () => {
     expect(feeFor({ mode: "auto", fee: 99_000n }, 70_000n)).toBe(70_000n);
+  });
+
+  it("ignores a moving formula in manual mode", () => {
+    const control = { mode: "manual", fee: 70_000n } as const;
+    expect([feeFor(control, 66_000n), feeFor(control, 120_000n), feeFor(control, 400_000n)]).toEqual([70_000n, 70_000n, 70_000n]);
   });
 
   it("uses a person's price in manual mode", () => {

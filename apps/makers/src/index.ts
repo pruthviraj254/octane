@@ -41,10 +41,10 @@ import {
   optionalSetting,
   setting,
 } from "./config.ts";
-import { ControlFile, TickWatchdog, claimProcess, feeFor, pastLimit, releaseProcess, signedUntil, type Control } from "./control.ts";
+import { ControlFile, TickWatchdog, agentActive, claimProcess, feeFor, pastLimit, releaseProcess, signedUntil, type Control } from "./control.ts";
 import { Journal } from "./journal.ts";
 import { JournalPublisher } from "./publish.ts";
-import { priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
+import { gasCost, priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
 import { askRegime, type Regime } from "./regime.ts";
 import { startRelayer } from "./relayer.ts";
 
@@ -243,7 +243,8 @@ async function tick(): Promise<void> {
     return;
   }
 
-  const fee = feeFor(wanted, priceFee(config!, market, regime.bufferBps));
+  const formula = priceFee(config!, market, regime.bufferBps);
+  const fee = feeFor(wanted, formula);
   const quote: Quote = {
     maker: account.address,
     chainId: BigInt(whitechainSepolia.id),
@@ -263,6 +264,8 @@ async function tick(): Promise<void> {
   journal.write(result.status === "sent" ? "quoted" : "skipped", {
     seq,
     fee,
+    formula,
+    gasCost: gasCost(market),
     mode: wanted.mode,
     until: wanted.until,
     pathA: Boolean(pathA),
@@ -454,8 +457,8 @@ void (async () => {
 void (async () => {
   while (!stopping) {
     try {
-      // A person setting their own price has no use for the agent's risk call.
-      if (control.read().mode === "auto") await updateRegime(await currentMarket());
+      // A maker with no agent makes no AI calls at all.
+      if (agentActive(control.read())) await updateRegime(await currentMarket());
     } catch (error) {
       journal.write("regime-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
     }

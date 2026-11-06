@@ -18,7 +18,8 @@ export function PricingNote() {
         <li>Gas cost comes from Whitechain's live gas price and the WBT/USDT pool.</li>
         <li>The AI only picks the buffer, from 0 to 50%. Code does the rest.</li>
         <li>Every fee stays between 0.065 and 0.50 USDT, whoever sets it.</li>
-        <li>A person setting their own rate skips the formula, and that rate holds until they change it or their time limit ends.</li>
+        <li>A maker with no AI agent skips all of this. Its rate never moves until its owner changes it.</li>
+        <li>An owner can override their agent with a fixed price at any time, then hand back to the formula.</li>
       </ul>
     </aside>
   );

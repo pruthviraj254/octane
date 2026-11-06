@@ -114,7 +114,7 @@ The maker desk at `/makers/desk` does all of this on screen:
 
 1. **Create a desk wallet.** A maker sends a transaction for every payment it carries, so it needs a wallet that signs around the clock. The key stays in `.env` on your machine.
 2. **Fund it.** WBT pays gas, about 0.00075 WBT a payment. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour. On testnet, the desk can borrow a small float.
-3. **Choose who prices.** An AI agent reprices about every 10 seconds, or you set your own rate and time limit, and change either while live. Fees stay between 0.065 and 0.50 USDT either way.
+3. **Choose who prices.** With no AI agent, your rate holds exactly until you change it, and no AI is called. With an agent, the formula reprices about every 10 seconds and the desk shows its working. You can force a price over the agent at any time, and it keeps calculating beside your price until you hand back. You can also set and extend a time limit. Fees stay between 0.065 and 0.50 USDT whoever sets them.
 4. **Go live.** Fees arrive as stablecoins in the same transaction as each payment.
 5. **Have spare ETH?** Set up a paymaster: your own clone on the EF devnet, staked 0.012 ETH and funded with 0.1 ETH, which sponsors USDC payments.
 

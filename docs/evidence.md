@@ -88,6 +88,16 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 | Reach the time limit | Left the board by itself, then returned when extended |
 | Set up a paymaster, [carry a USDC payment](https://explorer.altmempool.wtf/tx/0x004930840d7141cd0674fe501ad5791d5df66e2ac6ad3caf01fa6d21dbe57859) | Orbit's own staked clone paid the gas, and Orbit earned 0.08 USDC |
 
+**Who sets the price, measured on the live market, Nov 6.** Maker Orbit through the desk, sampled from its own journal:
+| State | Result |
+|---|---|
+| No agent | 7 quotes in 62s, all exactly 0.075, with 0 AI calls, while the formula moved between 0.082786 and 0.082788 |
+| Agent pricing | Quoted 0.082786, matching 0.060655 × 1.20 + 0.01 |
+| Price forced over the agent | 7 quotes in 65s, all exactly 0.09, while the agent made an AI call and would have charged 0.071869 |
+| Back to the agent | Returned to 0.071869 |
+| Agent removed | Fixed at 0.085 |
+| Machine with no AI | The desk refused an agent, and allowed a fixed rate |
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30), mined with status success, 327,011 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.

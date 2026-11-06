@@ -1,4 +1,4 @@
-import { NAME, controlOf, deskNames, listDesks, setUpMaker, startMaker, stopMaker, writeControl, type Control } from "@/lib/desk";
+import { NAME, aiConfigured, controlOf, deskNames, listDesks, setUpMaker, startMaker, stopMaker, writeControl, type Control } from "@/lib/desk";
 
 const MIN_FEE = 65_000;
 const MAX_FEE = 500_000;
@@ -19,7 +19,7 @@ const noStore = { headers: { "cache-control": "no-store" } };
 
 export async function GET(request: Request) {
   if (!fromThisMachine(request)) return refuse("The desk only runs on your own machine.", 403);
-  return Response.json({ desks: await listDesks() }, noStore);
+  return Response.json({ desks: await listDesks(), aiConfigured: aiConfigured() }, noStore);
 }
 
 interface Action {
@@ -31,6 +31,7 @@ interface Action {
   addSeconds?: unknown;
   clearLimit?: unknown;
   paymaster?: unknown;
+  agent?: unknown;
 }
 
 function validFee(fee: unknown): string | undefined {
@@ -42,6 +43,11 @@ function nextControl(name: string, body: Action): Control | string {
   const control = controlOf(name);
   const next: Control = { ...control };
   if (body.mode === "auto" || body.mode === "manual") next.mode = body.mode;
+  if (typeof body.agent === "boolean") next.agent = body.agent;
+  if (next.mode === "auto") {
+    if (!aiConfigured()) return "No AI is set up on this machine, so this maker needs a rate you set yourself.";
+    next.agent = true;
+  }
   if (body.fee !== undefined) {
     const fee = validFee(body.fee);
     if (!fee) return "A rate must be between 0.065 and 0.50 USDT.";
@@ -70,7 +76,11 @@ export async function POST(request: Request) {
       if (known) return refuse(`${name} already exists.`);
       const margin = Number(body.margin ?? 10_000);
       if (!Number.isInteger(margin) || margin < 0 || margin > 100_000) return refuse("A margin must be up to 0.10 USDT.");
-      return Response.json({ output: await setUpMaker(name, ["--spread", String(margin)]) });
+      const pricing = nextControl(name, { ...body, agent: body.mode === "auto" });
+      if (typeof pricing === "string") return refuse(pricing);
+      const output = await setUpMaker(name, ["--spread", String(margin)]);
+      writeControl(name, pricing);
+      return Response.json({ output });
     }
     if (!known) return refuse(`There's no maker called ${name} on this machine.`, 404);
 

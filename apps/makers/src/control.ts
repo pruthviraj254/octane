@@ -3,9 +3,12 @@ import { MAX_FEE, MIN_FEE } from "./config.ts";
 
 /** What the person running a maker has asked for. The desk page writes this file. */
 export interface Control {
+  /** `auto` uses the formula. `manual` holds a person's price, which never moves by itself. */
   mode: "auto" | "manual";
   /** USDT base units, used in manual mode. */
   fee?: bigint;
+  /** This maker has an AI agent. In manual mode that means the person is overriding it. */
+  agent?: boolean;
   /** Unix seconds. Past this, the maker takes its quote off the board. */
   until?: bigint;
 }
@@ -14,12 +17,17 @@ const dataDir = new URL("../data/", import.meta.url);
 
 export function parseControl(text: string): Control | undefined {
   try {
-    const raw = JSON.parse(text) as { mode?: unknown; fee?: unknown; until?: unknown };
+    const raw = JSON.parse(text) as { mode?: unknown; fee?: unknown; until?: unknown; agent?: unknown };
     if (raw.mode !== "auto" && raw.mode !== "manual") return undefined;
     const fee = raw.fee === undefined ? undefined : BigInt(String(raw.fee));
     const until = raw.until === undefined ? undefined : BigInt(String(raw.until));
     if (raw.mode === "manual" && fee === undefined) return undefined;
-    return { mode: raw.mode, ...(fee === undefined ? {} : { fee }), ...(until === undefined ? {} : { until }) };
+    return {
+      mode: raw.mode,
+      ...(fee === undefined ? {} : { fee }),
+      ...(until === undefined ? {} : { until }),
+      ...(typeof raw.agent === "boolean" ? { agent: raw.agent } : {}),
+    };
   } catch {
     return undefined;
   }
@@ -51,6 +59,11 @@ export function feeFor(control: Control, formula: bigint): bigint {
   if (control.fee < MIN_FEE) return MIN_FEE;
   if (control.fee > MAX_FEE) return MAX_FEE;
   return control.fee;
+}
+
+/** An overridden agent keeps thinking, so its owner can see what it would charge. */
+export function agentActive(control: Control): boolean {
+  return control.mode === "auto" || control.agent === true;
 }
 
 export function pastLimit(control: Control, now: bigint): boolean {
