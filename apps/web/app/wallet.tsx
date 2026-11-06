@@ -84,6 +84,11 @@ type Step =
   | { kind: "error"; message: string };
 
 const EXAMPLES = ["Pay Rahul 1 USDT", "Rahul ko 1 USDT bhejo"];
+/** The token decides the chain: each stablecoin settles on one network. */
+const NETWORKS: Record<Chain, { name: string; token: "USDT" | "USDC"; makers: string }> = {
+  whitechain: { name: "Whitechain Sepolia", token: "USDT", makers: "Makers on Whitechain Sepolia" },
+  "ef-devnet": { name: "EF alt-mempool devnet", token: "USDC", makers: "Paymasters on the EF alt-mempool devnet" },
+};
 /** One step of the payment, set inside the wallet panel. */
 const STEP = "animate-rise rounded-2xl bg-raised/50 p-4";
 
@@ -295,7 +300,12 @@ export function Wallet() {
               {balances ? <Balance value={balances.usdt} /> : <Skeleton className="h-12 w-44 align-bottom" />}{" "}
               <span className="font-sans text-lg font-medium tracking-normal text-ink-3">USDT</span>
             </p>
-            {balances && balances.usdc > 0n && <p className="mt-2 text-sm tabular-nums text-ink-2">{money(balances.usdc)} USDC</p>}
+            <p className="mt-2 text-[13px] text-ink-3">on {NETWORKS.whitechain.name}</p>
+            {balances && balances.usdc > 0n && (
+              <p className="mt-2 text-sm tabular-nums text-ink-2">
+                {money(balances.usdc)} USDC <span className="text-[13px] text-ink-3">on {NETWORKS["ef-devnet"].name}</span>
+              </p>
+            )}
             <p className="mt-3 text-[13px] text-ink-3" data-testid="gas-proof">
               Gas tokens held: {balances ? Number(formatEther(balances.wbt + balances.eth)).toFixed(balances.wbt + balances.eth > 0n ? 6 : 0) : "–"} · Transactions you've sent:{" "}
               {balances ? balances.transactionsSent : "–"}
@@ -331,6 +341,12 @@ export function Wallet() {
               </div>
             </form>
 
+            {text.trim() && (
+              <p data-testid="typed-network" className="mt-2 pl-1 text-[13px] text-ink-3">
+                Pays on <span className="text-ink-2">{NETWORKS[/usdc/i.test(text) ? "ef-devnet" : "whitechain"].name}</span>
+              </p>
+            )}
+
             {step.kind === "idle" && !text && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {EXAMPLES.map((example) => (
@@ -346,6 +362,10 @@ export function Wallet() {
               </div>
             )}
 
+            {step.kind === "idle" && !text && (
+              <p className="mt-3 pl-1 text-[13px] leading-relaxed text-ink-3">USDT pays on {NETWORKS.whitechain.name}. USDC pays on the {NETWORKS["ef-devnet"].name}.</p>
+            )}
+
             <div aria-live="polite">
               {step.kind !== "idle" && <div className="mt-4" />}
               {step.kind === "thinking" && <Progress title="Finding the best price" />}
@@ -358,7 +378,7 @@ export function Wallet() {
               {step.kind === "amount" && (
                 <AmountPrompt
                   to={step.to}
-                  onSubmit={(amount) => void prepare(`Pay ${step.to} ${amount}`)}
+                  onSubmit={(amount, token) => void prepare(`Pay ${step.to} ${amount} ${token}`)}
                   onCancel={() => setStep({ kind: "idle" })}
                 />
               )}
@@ -474,12 +494,21 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
-function AmountPrompt({ to, onSubmit, onCancel }: { to: Address; onSubmit: (amount: string) => void; onCancel: () => void }) {
+function AmountPrompt({
+  to,
+  onSubmit,
+  onCancel,
+}: {
+  to: Address;
+  onSubmit: (amount: string, token: "USDT" | "USDC") => void;
+  onCancel: () => void;
+}) {
   const [amount, setAmount] = useState("");
+  const [chain, setChain] = useState<Chain>("whitechain");
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (amount.trim()) onSubmit(amount.trim());
+    if (amount.trim()) onSubmit(amount.trim(), NETWORKS[chain].token);
   }
 
   return (
@@ -487,6 +516,28 @@ function AmountPrompt({ to, onSubmit, onCancel }: { to: Address; onSubmit: (amou
       <form onSubmit={submit} data-testid="amount-prompt">
         <p className="text-sm text-ink-3">Sending to</p>
         <p className="mt-1 break-all font-mono text-[13px] leading-relaxed text-ink">{to}</p>
+
+        <p className="mt-4 text-sm text-ink-3">Pay with</p>
+        <div role="radiogroup" aria-label="Token and network" className="mt-1.5 grid grid-cols-2 gap-2">
+          {(Object.keys(NETWORKS) as Chain[]).map((key) => {
+            const active = key === chain;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                data-testid={`token-${NETWORKS[key].token}`}
+                onClick={() => setChain(key)}
+                className={`rounded-xl border p-2.5 text-left transition-colors ${active ? "border-accent/60 bg-accent-soft" : "border-line hover:border-line-strong"}`}
+              >
+                <span className="block text-sm font-medium">{NETWORKS[key].token}</span>
+                <span className="block text-xs text-ink-3">{NETWORKS[key].name}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <label htmlFor="amount" className="mt-4 block text-sm text-ink-3">
           How much?
         </label>
@@ -495,7 +546,8 @@ function AmountPrompt({ to, onSubmit, onCancel }: { to: Address; onSubmit: (amou
           autoFocus
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
-          placeholder="10 USDT"
+          placeholder="10"
+          inputMode="decimal"
           autoComplete="off"
           className="mt-1.5 h-10 w-full rounded-lg border border-line-strong bg-transparent px-3 text-[15px] tabular-nums outline-none transition-colors placeholder:text-ink-3 focus:border-ink-2"
         />
@@ -546,6 +598,9 @@ function Confirm({
       </p>
 
       <dl className="mt-3 divide-y divide-line border-t border-line">
+        <Detail label="Network">
+          <span data-testid="review-network">{NETWORKS[plan.chain].name}</span>
+        </Detail>
         <Detail label="Fee">
           {covered ? (
             <span className="text-ink-3">
@@ -560,7 +615,7 @@ function Confirm({
             {money(total)} {plan.symbol}
           </span>
         </Detail>
-        <Detail label="Maker">
+        <Detail label={plan.chain === "ef-devnet" ? "Paymaster" : "Maker"}>
           <span className="inline-flex items-center gap-2">
             {!overridden && plan.others > 0 && <Badge tone="accent">Cheapest of {plan.others + 1}</Badge>}
             {style}
@@ -585,8 +640,12 @@ function Confirm({
       )}
 
       {picking && (
-        <fieldset data-testid="maker-picker" className="mt-1 animate-rise divide-y divide-line overflow-hidden rounded-xl border border-line">
-          <legend className="sr-only">Choose a maker</legend>
+        <div className="mt-2">
+          <p data-testid="picker-network" className="mb-1.5 text-[13px] text-ink-3">
+            {NETWORKS[plan.chain].makers}
+          </p>
+          <fieldset data-testid="maker-picker" className="animate-rise divide-y divide-line overflow-hidden rounded-xl border border-line">
+            <legend className="sr-only">{NETWORKS[plan.chain].makers}</legend>
           {plan.quotes.map((entry) => (
             <label
               key={entry.key}
@@ -605,10 +664,13 @@ function Confirm({
                 {entry.key === plan.best.key && <Badge tone="accent">Recommended</Badge>}
                 {isSkipped(entry) && <Badge tone="caution">Poor record</Badge>}
               </span>
-              <span className="shrink-0 tabular-nums text-ink-2">{money(entry.quote.fee)}</span>
+              <span className="shrink-0 tabular-nums text-ink-2">
+                {money(entry.quote.fee)} {plan.symbol}
+              </span>
             </label>
           ))}
-        </fieldset>
+          </fieldset>
+        </div>
       )}
 
       {!overridden && plan.skipped.length > 0 && (
@@ -686,6 +748,7 @@ function Receipt({ plan, result }: { plan: Plan; result: PaymentResult }) {
         </p>
       </div>
       <dl className="mt-3 divide-y divide-line border-t border-line">
+        <Detail label="Network">{NETWORKS[plan.chain].name}</Detail>
         <Detail label={merchantCovered ? `Fee, covered by ${plan.name}` : "Fee"}>
           {money(result.fee)} {plan.symbol}
         </Detail>
