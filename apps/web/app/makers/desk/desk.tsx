@@ -166,7 +166,7 @@ const WHERE: { key: Where; label: string; needs: string; carries: string }[] = [
   { key: "both", label: "Both", needs: "Spare WBT and ETH", carries: "Carries USDT and USDC payments" },
 ];
 
-function MarketChoice({ where, onChange }: { where: Where; onChange: (where: Where) => void }) {
+function MarketChoice({ where, onChange }: { where: Where | undefined; onChange: (where: Where) => void }) {
   return (
     <div>
       <p className="text-[13px] text-ink-3">Where do you want to be a maker?</p>
@@ -241,7 +241,8 @@ const INPUT =
 function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [where, setWhere] = useState<Where>("whitechain");
+  // Nothing is picked for you: this decides the chain, the funds and the token.
+  const [where, setWhere] = useState<Where>();
   const [chosenManual, setManual] = useState(true);
   const [rate, setRate] = useState("0.07");
   const [margin, setMargin] = useState("0.01");
@@ -250,13 +251,13 @@ function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
   const efOnly = where === "ef-devnet";
   const manual = chosenManual || efOnly;
   const badRate = manual ? rateProblem(rate) : undefined;
-  const unit = efOnly ? "USDC" : where === "both" ? "USDT or USDC" : "USDT";
+  const unit = efOnly ? "USDC" : where === "both" ? "USDT or USDC" : where === "whitechain" ? "USDT" : "stablecoins";
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
     const base = toBase(margin);
     const fee = toBase(rate);
-    if (base === undefined || fee === undefined || badRate) return;
+    if (base === undefined || fee === undefined || badRate || !where) return;
     setBusy(true);
     const pricing = manual ? { mode: "manual", fee: fee.toString() } : { mode: "auto" };
     const markets = where === "both" ? ["whitechain", "ef-devnet"] : [where];
@@ -285,7 +286,7 @@ function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
         This creates a desk wallet on this machine. It has to run around the clock to carry payments, so it can't be a wallet that asks you to approve each one.
       </p>
       <form onSubmit={(event) => void create(event)} className="mt-4 space-y-4">
-        <Field label="Maker name" htmlFor="desk-name" hint="Lowercase letters and digits. It shows on the market.">
+        <Field label="Maker name" htmlFor="desk-name" hint="Lowercase letters and digits. It's only a label: the choice below sets the chain.">
           <input id="desk-name" value={name} onChange={(event) => setName(event.target.value.toLowerCase())} placeholder="nova" autoComplete="off" maxLength={16} className={INPUT} />
         </Field>
         <MarketChoice where={where} onChange={setWhere} />
@@ -300,8 +301,8 @@ function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
           </Field>
         )}
         <div className="flex gap-2">
-          <Button type="submit" disabled={busy || name.trim().length < 2 || badRate !== undefined}>
-            {busy ? "Setting up" : "Create desk wallet"}
+          <Button type="submit" disabled={busy || name.trim().length < 2 || badRate !== undefined || !where}>
+            {busy ? "Setting up" : where ? "Create desk wallet" : "Choose a market first"}
           </Button>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
             Cancel
