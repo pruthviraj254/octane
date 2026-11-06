@@ -326,6 +326,8 @@ function restart(reason: string): void {
   journal.write("restarting", { reason });
   releaseProcess(config!.id);
   server.close();
+  // Systemd restarts a failed service itself, and would kill a copy started from here.
+  if (process.env.INVOCATION_ID) process.exit(75);
   spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: process.env }).unref();
   process.exit(0);
 }

@@ -11,6 +11,8 @@ Environment=PATH=/opt/node/bin:/usr/bin:/bin
 ExecStart=/opt/node/bin/node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
 Restart=always
 RestartSec=5
+# Makers started from the desk are children of this service, and must outlive a restart.
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
