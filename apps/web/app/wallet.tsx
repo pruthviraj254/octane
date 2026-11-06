@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createPublicClient,
   erc20Abi,
+  formatEther,
   http,
   isAddress,
   isAddressEqual,
@@ -296,7 +297,7 @@ export function Wallet() {
             </p>
             {balances && balances.usdc > 0n && <p className="mt-2 text-sm tabular-nums text-ink-2">{money(balances.usdc)} USDC</p>}
             <p className="mt-3 text-[13px] text-ink-3" data-testid="gas-proof">
-              Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "–"} · Transactions you've sent:{" "}
+              Gas tokens held: {balances ? Number(formatEther(balances.wbt + balances.eth)).toFixed(balances.wbt + balances.eth > 0n ? 6 : 0) : "–"} · Transactions you've sent:{" "}
               {balances ? balances.transactionsSent : "–"}
             </p>
 
