@@ -34,10 +34,10 @@ import {
   PATH_A_MAX_GAS,
   QUOTE_VALIDITY_SECONDS,
   REFRESH_MS,
+  findMaker,
   hexSetting,
   optionalSetting,
   setting,
-  type MakerConfig,
 } from "./config.ts";
 import { Journal } from "./journal.ts";
 import { JournalPublisher } from "./publish.ts";
@@ -69,9 +69,9 @@ const SLOT0 = [
   },
 ] as const;
 
-const id = process.argv[2] as MakerConfig["id"] | undefined;
-const config = id ? MAKERS[id] : undefined;
-if (!config) throw new Error(`usage: maker <${Object.keys(MAKERS).join("|")}>`);
+const id = process.argv[2];
+const config = id ? findMaker(id) : undefined;
+if (!config) throw new Error(`usage: maker <${Object.keys(MAKERS).join("|")}|a name set up with new-maker>`);
 
 const account = privateKeyToAccount(hexSetting(`${config.envPrefix}_PRIVATE_KEY`));
 const relay = hexSetting("OCTANE_RELAY");
@@ -280,7 +280,11 @@ async function shutdown(): Promise<void> {
 }
 
 await assertUsdtDomain(client);
-await publishProfile();
+await publishProfile().catch((error: unknown) => {
+  console.error(`Maker ${id} couldn't write its profile to Arkiv: ${redactAccessKey(String(error)).split("\n")[0]?.slice(0, 200)}`);
+  console.error(`A new maker usually just needs funds. Check with: pnpm new-maker ${id}`);
+  process.exit(1);
+});
 
 const server = startRelayer({
   port: Number(new URL(endpoint).port),

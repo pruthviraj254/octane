@@ -3,7 +3,7 @@ import { parseEnv } from "node:util";
 
 /** Styles differ by how much margin they want and how they react to inventory. */
 export interface MakerConfig {
-  id: "cautious" | "aggressive" | "balancer";
+  id: string;
   envPrefix: string;
   /** Margin on top of cost, in USDT base units. */
   spread: bigint;
@@ -14,7 +14,7 @@ export interface MakerConfig {
   quotesPathA: boolean;
 }
 
-export const MAKERS: Record<MakerConfig["id"], MakerConfig> = {
+export const MAKERS = {
   cautious: {
     id: "cautious",
     envPrefix: "MAKER_CAUTIOUS",
@@ -39,7 +39,10 @@ export const MAKERS: Record<MakerConfig["id"], MakerConfig> = {
     targetWbt: 300_000_000_000_000_000n,
     quotesPathA: false,
   },
-};
+} satisfies Record<string, MakerConfig>;
+
+/** A new maker's margin unless it sets MAKER_<NAME>_SPREAD: 0.01 USDT. */
+const DEFAULT_SPREAD = 10_000n;
 
 /** Hard limits that no LLM output can move. */
 export const MIN_FEE = 65_000n; // 0.065 USDT, above cost at the base-fee floor
@@ -81,4 +84,24 @@ export function hexSetting(name: string): `0x${string}` {
   const value = setting(name);
   if (!value.startsWith("0x")) throw new Error(`${name} must start with 0x`);
   return value as `0x${string}`;
+}
+
+/**
+ * Joining needs no entry in this file: `maker nova` runs on MAKER_NOVA_* settings alone, which
+ * scripts/new-maker.ts creates. Path A isn't offered here, because it also needs a staked clone.
+ */
+export function findMaker(id: string): MakerConfig | undefined {
+  const listed = Object.values<MakerConfig>(MAKERS).find((maker) => maker.id === id);
+  if (listed) return listed;
+  const envPrefix = `MAKER_${id.toUpperCase()}`;
+  if (!optionalSetting(`${envPrefix}_PRIVATE_KEY`)) return undefined;
+  const spread = optionalSetting(`${envPrefix}_SPREAD`);
+  return {
+    id,
+    envPrefix,
+    spread: spread ? BigInt(spread) : DEFAULT_SPREAD,
+    skewsInventory: false,
+    targetWbt: 0n,
+    quotesPathA: false,
+  };
 }

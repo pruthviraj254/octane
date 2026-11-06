@@ -18,6 +18,7 @@ import {
   downloadJournalChain,
   efDevnet,
   fetchMakerProfile,
+  fetchMakers,
   fetchMakerStats,
   hashQuote,
   inputsFromJournal,
@@ -65,7 +66,9 @@ const writer = new ArkivWriter(reader, arkivWallet(accessKey, account), account.
 
 const relay = setting("OCTANE_RELAY") as Address;
 const beeUrl = setting("SWARM_BEE_URL");
-const makers = ["MAKER_CAUTIOUS", "MAKER_AGGRESSIVE", "MAKER_BALANCER"].map((name) => setting(`${name}_ADDRESS`) as Address);
+const builtInMakers = ["MAKER_CAUTIOUS", "MAKER_AGGRESSIVE", "MAKER_BALANCER"].map((name) => setting(`${name}_ADDRESS`) as Address);
+/** Grows as new makers publish profiles, so joining needs nobody to update this indexer. */
+let makers = builtInMakers;
 
 const whitechain = createPublicClient({ chain: whitechainSepolia, transport: http(setting("WHITECHAIN_RPC_URL"), { timeout: 15_000 }) });
 const devnet = createPublicClient({ chain: efDevnet, transport: http(undefined, { timeout: 15_000, retryCount: 0 }) });
@@ -238,6 +241,8 @@ for (;;) {
   }
   if (Date.now() - lastStats > STATS_INTERVAL_MS) {
     lastStats = Date.now();
+    const found = await fetchMakers(reader).catch(() => []);
+    makers = [...new Map([...builtInMakers, ...found].map((maker) => [maker.toLowerCase(), maker])).values()];
     for (const maker of makers) {
       try {
         await publishStats(maker);

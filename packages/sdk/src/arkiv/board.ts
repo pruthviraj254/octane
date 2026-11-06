@@ -101,6 +101,14 @@ export async function fetchBoard(
   return { quotes: checked.filter((entry) => entry !== undefined), blockNumber: page.blockNumber };
 }
 
+/** Every maker with a profile it owns itself. Nobody has to add a new maker to a list. */
+export async function fetchMakers(reader: ArkivReader, limit = 20): Promise<Address[]> {
+  const page = await reader.select().from(MakerEntity).limit(limit).fetch();
+  return page.entities
+    .filter((row) => isAddressEqual(row.$owner as Address, row.maker.value as Address))
+    .map((row) => row.maker.value as Address);
+}
+
 /** Finds where to send a signed job. The profile must be written by the maker itself. */
 export async function fetchMakerProfile(reader: ArkivReader, maker: Address): Promise<MakerProfile | undefined> {
   const page = await reader.select().from(MakerEntity).where(eq("maker", addr(maker))).ownedBy(maker).limit(1).fetch();

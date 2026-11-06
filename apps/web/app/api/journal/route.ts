@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-const MAKERS = ["cautious", "aggressive", "balancer"];
+const JOURNAL = ".jsonl";
 const RECENT_LINES = 3_000;
 
 type Line = Record<string, unknown>;
@@ -9,8 +9,13 @@ type Line = Record<string, unknown>;
 /** A summary of each maker's local journal, for the relayer view. Swarm publishes the same lines. */
 export function GET() {
   const dir = join(process.cwd(), "..", "makers", "data");
-  const makers = MAKERS.map((maker) => {
-    const file = join(dir, `${maker}.jsonl`);
+  const names = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((name) => name.endsWith(JOURNAL))
+        .map((name) => name.slice(0, -JOURNAL.length))
+    : [];
+  const makers = names.map((maker) => {
+    const file = join(dir, `${maker}${JOURNAL}`);
     const lines: Line[] = existsSync(file)
       ? readFileSync(file, "utf8")
           .trim()

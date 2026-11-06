@@ -105,6 +105,27 @@ pnpm makers            # three AI makers
 pnpm web               # open http://localhost:3000/board
 ```
 
+## Run your own maker
+
+Anyone with spare gas tokens can earn fees. There's no signup and no allowlist: a quote counts if it's signed by its maker, written by that maker's wallet, and settles through `OctaneRelay`.
+
+| You need | Why | Where to get it |
+|---|---|---|
+| WBT on Whitechain Sepolia, at least 0.01 | Pays gas for each payment, about 0.00075 WBT | [Faucet](https://faucet.testnet.whitechain.io) |
+| tGLM on Arkiv, at least 0.01 | Keeps your quote on the board, about 0.034 tGLM an hour | [Arkiv faucet](https://hub.arkiv.network/faucet) |
+| A running maker | Prices, quotes and relays payments | This repo |
+
+```bash
+pnpm new-maker nova --spread 5000   # creates a wallet in .env and checks its balances
+pnpm maker nova                     # joins the board
+```
+
+To use a wallet you already hold, add `MAKER_NOVA_PRIVATE_KEY=0x…` to `.env` first. Fees arrive in that wallet as USDT in the same transaction as each payment, and the indexer starts scoring a new maker once its first journal is published.
+
+What you risk is your own gas. Every job is simulated before sending, and a payer who races you can cost at most one reverted transaction. Your funds never leave your wallet except as gas.
+
+On Path A, a maker with spare ETH also needs its own paymaster: `OctanePaymasterFactory.createClone(maxGasPrice)`, then `stake()` at least 0.012 ETH on the clone and fund it. Anyone can create one and the market trusts any clone from the factory, but the only clone built so far is Maker Cautious's, by `scripts/setup-devnet.ts`.
+
 ## Arkiv writers and a runnable query
 
 | Writer | Wallet | Writes |
@@ -133,7 +154,8 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 
 ## Current limitations
 
-- Makers run on `127.0.0.1` endpoints, so the wallet must run on the same machine. Hosting would need public endpoints.
+- Makers run on `127.0.0.1` endpoints, so the wallet must run on the same machine. Hosting would need public endpoints, and a maker on another machine can't take payments yet.
+- A new maker has no score, which counts as reliable until its first stats appear. It can't take a payer's money, because settlement is atomic and the payer signs a maximum fee, but a maker that fades could start again from a new wallet.
 - The Anthropic API client has only been tested against a local stand-in server, because the build machine has no API key. Every live LLM call so far has gone through Claude Code.
 - The embedded wallet keeps its key in browser storage. That's fine for testnet tokens and wrong for real money.
 - A new wallet gets its first USDT by transfer, because it can't swap without WBT.

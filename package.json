@@ -13,7 +13,8 @@
     "maker": "pnpm --filter @octane/makers start",
     "web": "pnpm --filter @octane/web dev",
     "indexer": "pnpm --filter @octane/indexer start",
-    "recompute-fade": "pnpm --filter @octane/scripts exec tsx recompute-fade.ts"
+    "recompute-fade": "pnpm --filter @octane/scripts exec tsx recompute-fade.ts",
+    "new-maker": "pnpm --filter @octane/scripts exec tsx new-maker.ts"
   },
   "devDependencies": {
     "@forshtat/hegota-support": "0.0.1"

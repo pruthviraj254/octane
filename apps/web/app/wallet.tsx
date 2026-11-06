@@ -422,7 +422,7 @@ function Confirm({
 
       {plan.skipped.length > 0 && (
         <p className="mt-1 text-[13px] leading-relaxed text-caution">
-          Passed over {plan.skipped.map((entry) => capitalise(entry.style)).join(" and ")}: too many failed deliveries.
+          Passed over {new Intl.ListFormat("en").format(plan.skipped.map((entry) => capitalise(entry.style)))}: too many failed deliveries.
         </p>
       )}
 
