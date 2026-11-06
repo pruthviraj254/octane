@@ -10,7 +10,7 @@
 
 ## Can they try it today?
 
-Yes, from the source. Watching the live market takes no keys at all:
+Yes. The live app is at <https://octane.rishabhprajapati.me>, with makers relaying from a public server. It can also run from the source, and watching the live market takes no keys at all:
 
 ```bash
 pnpm install
@@ -22,7 +22,7 @@ To run makers and pay on your own machine, add your own test keys to `.env` and 
 
 An agent connects through the MCP server in `.mcp.json`. Everything runs on public testnets with test tokens. Any wallet can also read the live market directly with the query in the README.
 
-The app isn't hosted yet, so a visitor can't try it from a link. That needs public maker endpoints.
+A new wallet still needs its first test USDT sent to it, because it can't swap without WBT.
 
 ## Will we keep building?
 

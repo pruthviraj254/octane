@@ -157,14 +157,13 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 ## Current limitations
 
 - With no `NEXT_PUBLIC_ARKIV_ACCESS_KEY`, the app reads Arkiv through its own read-only route, because the keyless public endpoint rate limits a live board. A browser key lets it read Arkiv directly. With no server key either, that route uses the keyless endpoint, which is enough for one viewer.
-- Makers run on `127.0.0.1` endpoints, so the wallet must run on the same machine. Hosting would need public endpoints, and a maker on another machine can't take payments yet.
+- The hosted makers all run on one server, so one machine failing takes them all offline. A maker elsewhere needs its own public address, set with `MAKER_<NAME>_PUBLIC_ENDPOINT`.
 - A new maker has no score, which counts as reliable until its first stats appear. It can't take a payer's money, because settlement is atomic and the payer signs a maximum fee, but a maker that fades could start again from a new wallet.
-- The Anthropic API client has only been tested against a local stand-in server, because the build machine has no API key. Every live LLM call so far has gone through Claude Code.
 - The embedded wallet keeps its key in browser storage. That's fine for testnet tokens and wrong for real money.
 - A new wallet gets its first USDT by transfer, because it can't swap without WBT.
 - Path A fees are a fixed 0.05 USDC unless a maker sets its own rate, because the EF devnet has no ETH/USDC market to price from.
 - Browser wallets can pay in USDT, but they can't sign EIP-8141 frame transactions yet, so USDC on Path A needs the built-in wallet.
-- The maker desk only answers on the machine it runs on, because it can start and stop a maker.
+- The maker desk only answers on the machine it runs on, because it can start and stop a maker. On the hosted site only the owner can reach it, over SSH. See [`deploy/README.md`](deploy/README.md).
 - A browser wallet can own a desk but can't sign for it, because a maker signs every payment and quote refresh, and `OctaneRelay` requires the maker itself to send each relay.
 - Path A ships Layout 1, so a maker can pay gas for a fee frame that later reverts. The damage is bounded, and [`docs/ef-design.md`](docs/ef-design.md) explains it and a tested fix.
 - Swarm journals use a public gateway's stamps, so they can disappear without notice. See [`arkiv/swarm.md`](arkiv/swarm.md).
