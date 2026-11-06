@@ -55,8 +55,13 @@ interface Plan {
   amount: bigint;
   chain: Chain;
   symbol: string;
+  /** What the wallet recommends: the cheapest maker with a sound record. */
   best: BoardQuote;
+  /** Every live quote, cheapest first, including those the wallet passed over. */
+  quotes: BoardQuote[];
   others: number;
+  /** Undefined until a balance has loaded. */
+  held: bigint | undefined;
   /** This recipient is a merchant whose checkout can cover the fee. */
   merchant: boolean;
   /** Cheaper makers passed over because of their fade score. */
@@ -170,7 +175,9 @@ export function Wallet() {
           chain,
           symbol: body.intent.token,
           best,
+          quotes,
           others: reliable.length - 1,
+          held,
           skipped: faded.map((entry) => ({ style: entry.style, maker: entry.quote.maker })),
           merchant: isMerchant,
         },
@@ -197,10 +204,12 @@ export function Wallet() {
     };
   }
 
-  async function pay(plan: Plan, merchantPays: boolean) {
+  async function pay(plan: Plan, merchantPays: boolean, entry: BoardQuote) {
     if (!wallet) return;
     setStep({ kind: "paying", plan });
-    const maxFee = (plan.best.quote.fee * FEE_TOLERANCE_PERCENT) / 100n;
+    const maxFee = (entry.quote.fee * FEE_TOLERANCE_PERCENT) / 100n;
+    // Only an override binds the payment to one maker. The default can still fall back.
+    const chosen = entry.key === plan.best.key ? {} : { maker: entry.quote.maker };
     try {
       const result =
         plan.chain === "whitechain"
@@ -209,7 +218,8 @@ export function Wallet() {
               to: plan.to,
               amount: plan.amount,
               maxFee,
-              avoid: plan.skipped.map((entry) => entry.maker),
+              avoid: plan.skipped.map((skipped) => skipped.maker),
+              ...chosen,
               ...(merchantPays ? { merchantOptIn: await merchantOptIn(plan.amount) } : {}),
             })
           : await payOnEfDevnet(getMarket(), {
@@ -218,6 +228,7 @@ export function Wallet() {
               payments: [{ to: plan.to, amount: plan.amount }],
               maxFee,
               maxFeePerGas: parseGwei("2"),
+              ...chosen,
             });
       setStep({ kind: "paid", plan, result });
       setText("");
@@ -380,14 +391,21 @@ function Confirm({
   onCancel,
 }: {
   plan: Plan;
-  onPay: (plan: Plan, merchantPays: boolean) => void;
+  onPay: (plan: Plan, merchantPays: boolean, entry: BoardQuote) => void;
   onCancel: () => void;
 }) {
   const [merchantPays, setMerchantPays] = useState(false);
-  const fee = plan.best.quote.fee;
+  const [chosen, setChosen] = useState(plan.best);
+  const [picking, setPicking] = useState(false);
+
+  const isSkipped = (entry: BoardQuote) => plan.skipped.some((skipped) => isAddressEqual(skipped.maker, entry.quote.maker));
+  const overridden = chosen.key !== plan.best.key;
+  const fee = chosen.quote.fee;
   const canMerchantPay = plan.merchant && fee < plan.amount;
-  const total = merchantPays ? plan.amount : plan.amount + fee;
-  const style = capitalise(plan.best.style);
+  const covered = merchantPays && canMerchantPay;
+  const total = covered ? plan.amount : plan.amount + fee;
+  const short = plan.held !== undefined && plan.held < total;
+  const style = capitalise(chosen.style);
 
   return (
     <Card className="animate-rise p-4 sm:p-5">
@@ -399,7 +417,7 @@ function Confirm({
 
       <dl className="mt-3 divide-y divide-line border-t border-line">
         <Detail label="Fee">
-          {merchantPays ? (
+          {covered ? (
             <span className="text-ink-3">
               <s>{money(fee)}</s> {plan.name} covers it
             </span>
@@ -414,15 +432,68 @@ function Confirm({
         </Detail>
         <Detail label="Maker">
           <span className="inline-flex items-center gap-2">
-            {plan.others > 0 && <Badge tone="accent">Cheapest of {plan.others + 1}</Badge>}
+            {!overridden && plan.others > 0 && <Badge tone="accent">Cheapest of {plan.others + 1}</Badge>}
             {style}
+            {plan.quotes.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setPicking(!picking)}
+                aria-expanded={picking}
+                className="text-[13px] text-ink-3 underline underline-offset-2 transition-colors hover:text-ink"
+              >
+                {picking ? "Done" : "Change"}
+              </button>
+            )}
           </span>
         </Detail>
       </dl>
 
-      {plan.skipped.length > 0 && (
+      {!covered && (
+        <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+          Makers reprice every 10 seconds, so the final fee can move. It can't go above {money((fee * FEE_TOLERANCE_PERCENT) / 100n)} {plan.symbol}.
+        </p>
+      )}
+
+      {picking && (
+        <fieldset data-testid="maker-picker" className="mt-1 animate-rise divide-y divide-line overflow-hidden rounded-lg border border-line">
+          <legend className="sr-only">Choose a maker</legend>
+          {plan.quotes.map((entry) => (
+            <label
+              key={entry.key}
+              className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-raised has-[:checked]:bg-raised"
+            >
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+                <input
+                  type="radio"
+                  name="maker"
+                  value={entry.style}
+                  checked={entry.key === chosen.key}
+                  onChange={() => setChosen(entry)}
+                  className="accent-accent"
+                />
+                {capitalise(entry.style)}
+                {entry.key === plan.best.key && <Badge tone="accent">Recommended</Badge>}
+                {isSkipped(entry) && <Badge tone="caution">Poor record</Badge>}
+              </span>
+              <span className="shrink-0 tabular-nums text-ink-2">{money(entry.quote.fee)}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+
+      {!overridden && plan.skipped.length > 0 && (
         <p className="mt-1 text-[13px] leading-relaxed text-caution">
           Passed over {new Intl.ListFormat("en").format(plan.skipped.map((entry) => capitalise(entry.style)))}: too many failed deliveries.
+        </p>
+      )}
+      {overridden && (
+        <p data-testid="override-note" className={`mt-2 text-[13px] leading-relaxed ${isSkipped(chosen) ? "text-caution" : "text-ink-3"}`}>
+          {isSkipped(chosen) ? `${style} has too many failed deliveries. ` : ""}If {style} can't deliver, this payment stops and won't move to another maker.
+        </p>
+      )}
+      {short && (
+        <p className="mt-2 text-[13px] leading-relaxed text-caution">
+          You have {money(plan.held ?? 0n)} {plan.symbol}. With this maker the payment needs {money(total)} {plan.symbol}.
         </p>
       )}
 
@@ -447,7 +518,9 @@ function Confirm({
         <Button variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button onClick={() => onPay(plan, merchantPays)}>Confirm</Button>
+        <Button disabled={short} onClick={() => onPay(plan, covered, chosen)}>
+          Confirm
+        </Button>
       </div>
     </Card>
   );

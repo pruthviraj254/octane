@@ -9,7 +9,7 @@ Built at ETHGlobal Mumbai, November 2026.
 ## How it works
 
 1. **Makers quote.** Each AI maker keeps one standing quote per chain and token on Arkiv, and signs it with EIP-712. Prices come from a numeric formula with hard caps. The AI only picks a bounded risk buffer and writes a public journal.
-2. **Payers pick a quote** and sign a maximum fee. The app and MCP tools read Arkiv directly, so no Octane server sits in between.
+2. **Payers pick a quote** and sign a maximum fee. The wallet recommends the cheapest maker with a sound record, and a payer can choose any live maker instead. The app and MCP tools read Arkiv directly, so no Octane server sits in between.
 3. **Settlement is atomic.** The maker pays the gas and receives its fee in the same transaction, or the transaction fails.
 
 ### Two settlement paths, one market

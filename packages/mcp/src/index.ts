@@ -71,6 +71,7 @@ server.registerTool(
         await Promise.all(
           quotes.map(async (entry) => ({
             maker: (await resolveIdentity(entry.quote.maker)).label,
+            address: entry.quote.maker,
             style: entry.style,
             fee: `${formatUnits(entry.quote.fee, decimals)} ${symbol}`,
             signedValiditySeconds: Number(entry.quote.validUntil) - Math.floor(Date.now() / 1000),
@@ -92,24 +93,31 @@ server.registerTool(
       chain: chainInput,
       to: z.string().describe("Recipient address"),
       amount: z.string().regex(/^\d+(\.\d{1,6})?$/).describe('Amount in whole tokens, for example "5" or "0.25"'),
+      maker: z
+        .string()
+        .optional()
+        .describe("Address of one maker to use, from get_gas_quote. Leave it out for the cheapest reliable maker. A chosen maker is never swapped: if it fails, the payment stops"),
     },
   },
-  async ({ chain, to, amount }) => {
+  async ({ chain, to, amount, maker }) => {
     try {
       if (!isAddress(to)) throw new Error(`"${to}" isn't an address`);
+      if (maker !== undefined && !isAddress(maker)) throw new Error(`"${maker}" isn't an address`);
       const value = parseUnits(amount, decimals);
       if (value === 0n) throw new Error("the amount must be above zero");
       caps.check(value);
 
+      const chosen = maker ? { maker } : {};
       const result =
         (chain as Chain) === "whitechain"
-          ? await payOnWhitechain(market, { payer: agent, to, amount: value, maxFee: caps.maxFee })
+          ? await payOnWhitechain(market, { payer: agent, to, amount: value, maxFee: caps.maxFee, ...chosen })
           : await payOnEfDevnet(market, {
               sender: agent.address,
               privateKey: agentKey,
               payments: [{ to, amount: value }],
               maxFee: caps.maxFee,
               maxFeePerGas: parseGwei("2"),
+              ...chosen,
             });
 
       caps.record(value + result.fee);

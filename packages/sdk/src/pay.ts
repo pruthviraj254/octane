@@ -113,9 +113,29 @@ async function settleViaRelayer(market: MarketConfig, entry: BoardQuote, job: Re
 }
 
 /**
+ * The quotes a payment may try, in order. Choosing a maker makes it the only candidate, even one
+ * with a poor record: a payer who overrode the default is never moved to someone else unasked.
+ */
+export function eligibleQuotes(
+  quotes: readonly BoardQuote[],
+  args: { maxFee: bigint; avoid: readonly Address[]; maker?: Address },
+): BoardQuote[] {
+  const { maker } = args;
+  if (maker) {
+    const chosen = quotes.find((entry) => isAddressEqual(entry.quote.maker, maker));
+    if (!chosen) throw new Error("the maker you chose isn't quoting right now");
+    if (chosen.quote.fee > args.maxFee) throw new Error("the maker you chose raised its fee above your maximum");
+    return [chosen];
+  }
+  const avoided = (address: Address) => args.avoid.some((entry) => isAddressEqual(entry, address));
+  return quotes.filter((entry) => entry.quote.fee <= args.maxFee && !avoided(entry.quote.maker));
+}
+
+/**
  * Pays on Whitechain through the cheapest live maker, moving to the next one if a maker doesn't
- * deliver. Each attempt uses a fresh authorisation bound to that maker, so a failed attempt
- * can't be replayed through another. The payer only signs, however many attempts it takes.
+ * deliver, or through one chosen maker with no fallback. Each attempt uses a fresh authorisation
+ * bound to that maker, so a failed attempt can't be replayed through another. The payer only
+ * signs, however many attempts it takes.
  */
 export async function payOnWhitechain(
   market: MarketConfig,
@@ -127,12 +147,13 @@ export async function payOnWhitechain(
     merchantOptIn?: { terms: MerchantOptIn; signature: Hex };
     /** Makers to pass over, such as those with a poor fade score. */
     avoid?: readonly Address[];
+    /** Use only this maker. If it can't deliver, the payment stops. */
+    maker?: Address;
   },
 ): Promise<PaymentResult> {
   const { quotes } = await getQuotes(market, "whitechain");
-  const avoid = args.avoid ?? (await makersToAvoid(market, quotes.map((entry) => entry.quote.maker)));
-  const avoided = (maker: Address) => avoid.some((address) => isAddressEqual(address, maker));
-  const affordable = quotes.filter((entry) => entry.quote.fee <= args.maxFee && !avoided(entry.quote.maker));
+  const avoid = args.maker ? [] : (args.avoid ?? (await makersToAvoid(market, quotes.map((entry) => entry.quote.maker))));
+  const affordable = eligibleQuotes(quotes, { maxFee: args.maxFee, avoid, ...(args.maker ? { maker: args.maker } : {}) });
   if (affordable.length === 0) {
     throw new Error(quotes.length === 0 ? "no live quotes on Whitechain" : "every live quote is above your maximum fee");
   }
@@ -155,7 +176,7 @@ export async function payOnWhitechain(
       failures.push(`${entry.style}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  throw new Error(`no maker delivered. ${failures.join("; ")}`);
+  throw new Error(`${args.maker ? "the maker you chose didn't deliver, so the payment stopped" : "no maker delivered"}. ${failures.join("; ")}`);
 }
 
 /**
@@ -218,10 +239,12 @@ export async function payOnEfDevnet(
     payments: readonly { to: Address; amount: bigint }[];
     maxFee: bigint;
     maxFeePerGas: bigint;
+    /** Use only this maker. If it can't deliver, the payment stops. */
+    maker?: Address;
   },
 ): Promise<PaymentResult> {
   const { quotes } = await getQuotes(market, "ef-devnet");
-  const entry = quotes.find((candidate) => candidate.quote.fee <= args.maxFee);
+  const [entry] = eligibleQuotes(quotes, { maxFee: args.maxFee, avoid: [], ...(args.maker ? { maker: args.maker } : {}) });
   if (!entry) throw new Error(quotes.length === 0 ? "no live quotes on the EF devnet" : "every live quote is above your maximum fee");
 
   const nonce = await efPublicClient().getTransactionCount({ address: args.sender });

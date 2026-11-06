@@ -46,6 +46,20 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 | Merchant change across both | +0.153624 USDT |
 | Maker Aggressive change across both | +0.132752 USDT |
 
+**A new maker joining with no code change, Nov 6.** Maker Nova (`0x55a77764a3ede214F222463F355C01f0aC167ca2`) started from `pnpm new-maker` with a fresh wallet and no USDT:
+| Check | Result |
+|---|---|
+| [First payment](https://explorer.testnet.whitechain.io/tx/0xc35bd87e11adb460524fc625461c7fc7987befc3540daefdac4b0d33c3df2d44) | Sent from Nova's wallet, 0.1 USDT to the merchant, 0.065 USDT to Nova |
+| Reputation | The indexer found Nova from its Arkiv profile: fade 136, uptime 9864, 1 fill. `recompute-fade` matched all four |
+
+**Choosing a maker in the wallet, Nov 6:**
+| Case | Result |
+|---|---|
+| [Chose Balancer over the recommended maker](https://explorer.testnet.whitechain.io/tx/0x91e06f3430b9edce649b313136cd4a646837be3d553b4a1b8b47176ebb284633) | Settled by Balancer. Its fee moved from 0.076025 to 0.07782 between review and payment, inside the signed maximum |
+| Killed the chosen maker before Confirm | Payment stopped with an error. No balance changed, and no other maker was used |
+| [Default, no override](https://explorer.testnet.whitechain.io/tx/0x9132fdbd8269bbb46c02446bfac0f268a7a2d9dcb5a1721e26bda8052c978723) | Settled by the recommended maker |
+| [Chose Aggressive with the merchant covering the fee](https://explorer.testnet.whitechain.io/tx/0x2373129ee7e53f79ddfd47c58531589b6c7ee6588d7d54f7e3369b726e65bc35) | Payer paid 0.20, merchant netted 0.13218, Aggressive earned 0.06782 |
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
