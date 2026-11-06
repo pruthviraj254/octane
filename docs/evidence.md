@@ -24,6 +24,19 @@ Real results only: transaction links, admission reports, measured gas and latenc
 
 **Merchant-pays from the wallet:** [transaction](https://explorer.testnet.whitechain.io/tx/0x7cbd94b25ecc98eefd23fddf93f501b08fa0e34e310a2ecee2e37ded2b55f4a2). The payer paid exactly 0.2 USDT and the merchant covered the 0.067314 USDT fee.
 
+**Full retest, Nov 6, in a new browser profile at phone width.** Exact onchain balances before and after each payment:
+
+| Payment | Wallet | Merchant | Maker |
+|---|---|---|---|
+| [Pay Rahul 0.5 USDT](https://explorer.testnet.whitechain.io/tx/0xa9c1c48ae4cf7a5363dc62abd94542fa1800bb0dbd3c718edff89700470e7d80) | −0.577207 | +0.5 | +0.077207 |
+| [Same, merchant covers the fee](https://explorer.testnet.whitechain.io/tx/0x1ded0d7be42bd70ed2c1893a5de0e8f795065d23ff9596741f1643dec70187f9) | −0.5 | +0.433624 | +0.066376 |
+
+The wallet's WBT, ETH and transaction count stayed at 0 throughout.
+
+**Attacks on the live system (`scripts/attack-tests.ts`):** all 11 checks passed. Fake quotes written to Arkiv never reached the board, and makers refused malformed, expired, tampered and other makers' jobs. A payer with no funds was refused by simulation at no gas cost, and repeat offenders were blocked.
+
+**Soak test, 30 minutes:** all three makers live for about 97.7% of the time. At least one was live for about 98.8%. The worst gap was 22s, during an Arkiv RPC outage.
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
