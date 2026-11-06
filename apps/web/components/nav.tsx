@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Cpu, Store, Wallet, type LucideIcon } from "lucide-react";
+import { Activity, Cpu, Info, Store, Wallet, type LucideIcon } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,6 +15,7 @@ const LINKS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/board", label: "Market", icon: Activity },
   { href: "/merchant", label: "Merchant", icon: Store },
   { href: "/makers", label: "Makers", icon: Cpu },
+  { href: "/about", label: "About", icon: Info },
 ];
 
 const isActive = (pathname: string, href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -80,7 +81,7 @@ export function Nav() {
 
       <nav
         aria-label="Primary"
-        className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid grid-cols-4 rounded-2xl border border-line-strong bg-surface/85 p-1 shadow-[0_18px_50px_-14px_rgb(0_0_0/0.9)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid grid-cols-5 rounded-2xl border border-line-strong bg-surface/85 p-1 shadow-[0_18px_50px_-14px_rgb(0_0_0/0.9)] backdrop-blur-xl md:hidden"
       >
         {LINKS.map((link) => {
           const active = isActive(pathname, link.href);

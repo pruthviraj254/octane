@@ -277,7 +277,7 @@ export function Wallet() {
     <main className="relative">
       <Corona makers={rows.length} pulse={settled} />
 
-      <div className="relative mx-auto grid max-w-6xl gap-4 px-4 pb-32 sm:px-6 md:pb-24 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:pt-16">
+      <div className="relative mx-auto grid max-w-6xl gap-4 px-4 pb-4 sm:px-6 md:pb-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:pt-16">
         <section className="flex min-h-[316px] flex-col items-center justify-center text-center lg:min-h-0 lg:items-start lg:justify-start lg:pt-16 lg:text-left">
           <h1 className="headline max-w-[10ch] text-[42px] sm:text-5xl lg:max-w-[9ch] lg:text-[92px]">
             No gas token <em>needed.</em>

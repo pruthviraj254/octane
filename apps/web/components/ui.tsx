@@ -2,7 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 export function Page({ children }: { children: ReactNode }) {
-  return <main className="mx-auto w-full max-w-6xl px-4 pb-32 pt-8 sm:px-6 md:pb-24 md:pt-14">{children}</main>;
+  return <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-8 sm:px-6 md:pb-20 md:pt-14">{children}</main>;
 }
 
 export function PageHeader({ title, description, aside }: { title: ReactNode; description?: ReactNode; aside?: ReactNode }) {
