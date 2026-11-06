@@ -188,3 +188,10 @@ A fresh clone of the public repo, with no `.env` and no keys:
 - `/api/desk` returns 403 to the public, and a forged `Host` header doesn't reach it. Ports 3000 and 8801 aren't reachable from outside.
 - Over SSH, the desk stopped Eth, it stayed stopped, and Go live brought it back with its public address.
 - `/board`, `/makers` and the wallet rendered all 4 makers in headless Chrome.
+
+A new visitor's built-in wallet on the public site, in headless Chrome, with test funds sent from the payer agent:
+
+- [0.1 USDT to Rahul](https://explorer.testnet.whitechain.io/tx/0x7e1a6735bbe61745a1241ca80056b1b2c6433a51577770abdbda1fdf5d90887b), relayed by Aggressive from the server. The wallet went from 0.30 to 0.132192 USDT, so the fee was 0.067808.
+- ["Rahul ko 0.1 USDC bhejo"](https://explorer.altmempool.wtf/tx/0x5444b38ad2153164f8e4e05c1692dcd4e199938d422d40cceaf13d5a93440ee4) on Path A, from 0.30 to 0.15 USDC.
+- Afterwards the wallet held 0 WBT and 0 ETH, and had sent no transactions of its own on Whitechain.
+- Funding it was itself [a payment through Aggressive's public address](https://explorer.testnet.whitechain.io/tx/0xc146d5b5bf4b5aabbdd37f8d2573656da9c6b33102c8299aafe72f0f2ef01744).
