@@ -34,7 +34,7 @@ function LiveStatus() {
     <span className="hidden items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-xs text-ink-2 backdrop-blur-md xl:flex">
       <LiveDot live={status === "live" && rows.length > 0} />
       <span className="tabular-nums">
-        {status === "loading" ? "Connecting" : best ? `${rows.length} makers · from ${money(best.quote.fee)}` : "No live makers"}
+        {status === "loading" ? "Connecting" : best ? `${rows.length} makers · from ${money(best.quote.fee)}` : status === "offline" ? "Can't reach Arkiv" : "No live makers"}
       </span>
     </span>
   );

@@ -167,3 +167,13 @@ The simulation in `docs/evidence/patha-simulation.json` comes from this stopped 
 | Left the board after the last refresh | 29s |
 
 Only used gas was charged, even with a 1M gas limit. At one refresh every 10s, 2 tGLM lasts about 59 hours.
+
+## Clean clone check, Nov 6
+
+A fresh clone of the public repo, with no `.env` and no keys:
+
+- Install, typecheck, tests, the web build and the Foundry suite (59 tests, including the fork tests) all pass.
+- `pnpm recompute-fade` reproduced the board for Cautious (fade 5388, 103 journal files) and Aggressive (fade 5460, 101 files, 21 fills), and checked 5 Arkiv writes and 5 Whitechain balances against each journal.
+- With `.env.example` copied to `.env`, `/board` rendered all 4 live makers in headless Chrome.
+- The keyless read route answered 60 of 60 reads at the page's polling rate over 60 seconds.
+- All 30 Whitechain and EF transaction links in the docs have a successful receipt. The README's keyless Arkiv query returned 4 rows, and the Swarm example link opened.

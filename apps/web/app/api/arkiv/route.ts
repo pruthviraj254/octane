@@ -21,9 +21,10 @@ export async function POST(request: Request) {
   }
   if (typeof call.method !== "string" || !READS.has(call.method)) return failure(call.id, "only reads are allowed here");
 
-  const key = serverSetting("ARKIV_ACCESS_KEY");
-  const url = key ? arkivReader(key).chain.rpcUrls.default.http[0] : undefined;
-  if (!url) return failure(call.id, "this server has no Arkiv access key");
+  // With no key this is Arkiv's keyless public endpoint. It rate limits a busy page, but a
+  // fresh copy of the app still shows the real market.
+  const url = arkivReader(serverSetting("ARKIV_ACCESS_KEY") ?? "").chain.rpcUrls.default.http[0];
+  if (!url) return failure(call.id, "no Arkiv endpoint");
 
   try {
     const upstream = await fetch(url, {

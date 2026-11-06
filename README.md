@@ -130,6 +130,11 @@ What you risk is your own gas. Every job is simulated before sending, and a paye
 | Maker Cautious | `0x8B07DcE945641A7032BA44697Fff41ccAD2B12ea` | Quotes on both chains, profile, bids |
 | Maker Aggressive | `0x4C004C0261B2848b56334f8E518b2F54ED1da9e7` | Quotes, profile, bids |
 | Maker Balancer | `0x92CbA72bbeBf2b8d0388b566bB72d842daac10b4` | Quotes, profile, bids |
+| Desk maker Eth | `0x546c4A3De7968287a7EcF871e739972E8C69145A` | Quotes, profile |
+| Desk maker Nova | `0x55a77764a3ede214F222463F355C01f0aC167ca2` | Quotes, profile |
+| Desk maker Orbit | `0x5cad10201aFFF003148c960542Ed6FCe1A311c52` | Quotes, profile |
+| Desk maker Myrate | `0xf97f1e21A69924f8dC70eEEd075A76073c4D9A59` | Quotes, profile |
+| Desk maker Efmaker | `0x61f82F62E771CAc8016d425b2816D0fac73e2ba0` | Quotes, profile |
 | Indexer | `0xb547061EE3090b42E66e2F7F9378fbEd6863FE8E` | Fills, maker stats |
 | Payer agent | `0x52fbf81bAD237e818A35ab9B23864bE0287767cb` | Auction requests |
 
@@ -141,7 +146,7 @@ curl -s -X POST https://rpc.rabdi.db-chain.testnet.arkiv.network \
   -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"arkiv_query\",\"params\":[\"arkiv.schema = str('octane.quote') AND chainId = u64(1874)\",{\"select\":{\"key\":true,\"owner\":true,\"expiresAt\":true}}]}"
 ```
 
-Recompute a maker's reputation from public data alone:
+Recompute a maker's reputation from public data alone. After `pnpm install`, this needs no `.env` and no keys:
 
 ```bash
 pnpm recompute-fade --maker 0x8B07DcE945641A7032BA44697Fff41ccAD2B12ea
@@ -151,7 +156,7 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 
 ## Current limitations
 
-- With no `NEXT_PUBLIC_ARKIV_ACCESS_KEY`, the app reads Arkiv through its own read-only route, because the keyless public endpoint rate limits a live board. A browser key lets it read Arkiv directly.
+- With no `NEXT_PUBLIC_ARKIV_ACCESS_KEY`, the app reads Arkiv through its own read-only route, because the keyless public endpoint rate limits a live board. A browser key lets it read Arkiv directly. With no server key either, that route uses the keyless endpoint, which is enough for one viewer.
 - Makers run on `127.0.0.1` endpoints, so the wallet must run on the same machine. Hosting would need public endpoints, and a maker on another machine can't take payments yet.
 - A new maker has no score, which counts as reliable until its first stats appear. It can't take a payer's money, because settlement is atomic and the payer signs a maximum fee, but a maker that fades could start again from a new wallet.
 - The Anthropic API client has only been tested against a local stand-in server, because the build machine has no API key. Every live LLM call so far has gone through Claude Code.

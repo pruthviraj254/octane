@@ -10,14 +10,15 @@
 
 ## Can they try it today?
 
-Yes, from the source:
+Yes, from the source. Watching the live market takes no keys at all:
 
 ```bash
 pnpm install
-cp .env.example .env     # add your own test keys
-pnpm makers              # three AI makers
+cp .env.example .env
 pnpm web                 # open http://localhost:3000
 ```
+
+To run makers and pay on your own machine, add your own test keys to `.env` and run `pnpm makers`.
 
 An agent connects through the MCP server in `.mcp.json`. Everything runs on public testnets with test tokens. Any wallet can also read the live market directly with the query in the README.
 
