@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 const JOURNAL = ".jsonl";
 const RECENT_LINES = 3_000;
+/** About eight minutes of quotes, for each maker's price line. */
+const PRICE_POINTS = 48;
 
 type Line = Record<string, unknown>;
 
@@ -37,6 +39,10 @@ export function GET() {
       regime: latest("regime"),
       published: latest("published"),
       stopped: latest("stopped"),
+      fees: lines
+        .filter((line) => line.event === "quoted")
+        .slice(-PRICE_POINTS)
+        .map((line) => Number(line.fee)),
       jobs: lines.filter((line) => line.event === "relayed").slice(-3).reverse(),
       relayed: lines.filter((line) => line.event === "relayed").length,
     };

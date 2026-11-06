@@ -15,7 +15,8 @@ import {
   type MerchantOptIn,
   type PaymentResult,
 } from "@octane/sdk";
-import { ArrowUp, Check, ChevronRight, Copy, LoaderCircle, TriangleAlert } from "lucide-react";
+import { ArrowRight, ArrowUp, Check, ChevronRight, Copy, TriangleAlert } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -30,9 +31,13 @@ import {
   type Hex,
 } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
-import { Badge, Button, Card, Detail, External, Skeleton } from "@/components/ui";
+import { Corona } from "@/components/corona";
+import { EASE } from "@/components/providers";
+import { Ticker } from "@/components/ticker";
+import { Badge, Button, Detail, External, Skeleton } from "@/components/ui";
 import { capitalise, money, shortAddress } from "@/lib/format";
 import { INDEXER, MERCHANT, getMarket, whitechain } from "@/lib/market";
+import { useMarket } from "@/lib/market-context";
 import { loadWallet } from "@/lib/wallet";
 
 const DECIMALS = 6;
@@ -79,12 +84,16 @@ type Step =
   | { kind: "error"; message: string };
 
 const EXAMPLES = ["Pay Rahul 1 USDT", "Rahul ko 1 USDT bhejo"];
+/** One step of the payment, set inside the wallet panel. */
+const STEP = "animate-rise rounded-2xl bg-raised/50 p-4";
 
 export function Wallet() {
   const [wallet, setWallet] = useState<{ key: Hex; account: PrivateKeyAccount } | undefined>();
   const [balances, setBalances] = useState<Balances | undefined>();
   const [text, setText] = useState("");
   const [step, setStep] = useState<Step>({ kind: "idle" });
+  const [settled, setSettled] = useState(0);
+  const { rows } = useMarket().whitechain;
 
   useEffect(() => setWallet(loadWallet()), []);
 
@@ -237,6 +246,7 @@ export function Wallet() {
               ...chosen,
             });
       setStep({ kind: "paid", plan, result });
+      setSettled((count) => count + 1);
       setText("");
       void refresh();
     } catch (error) {
@@ -247,129 +257,172 @@ export function Wallet() {
   const busy = step.kind === "thinking" || step.kind === "paying";
 
   return (
-    <section className="animate-rise">
-      <p className="text-sm text-ink-3">Balance</p>
-      <p className="mt-2 text-[44px] font-semibold leading-none tracking-tight tabular-nums sm:text-5xl" data-testid="usdt-balance">
-        {balances ? <Balance value={balances.usdt} /> : <Skeleton className="h-10 w-40 align-bottom" />}{" "}
-        <span className="text-lg font-medium tracking-normal text-ink-3">USDT</span>
-      </p>
-      {balances && balances.usdc > 0n && (
-        <p className="mt-2 text-sm tabular-nums text-ink-2">{money(balances.usdc)} USDC</p>
-      )}
-      <p className="mt-3 text-[13px] text-ink-3" data-testid="gas-proof">
-        No gas token needed. Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "–"} · Transactions you've sent:{" "}
-        {balances ? balances.transactionsSent : "–"}
-      </p>
+    <main className="relative">
+      <Corona makers={rows.length} pulse={settled} />
 
-      <form onSubmit={submit} className="mt-8">
-        <label htmlFor="request" className="sr-only">
-          Who do you want to pay? Type a request or paste an address.
-        </label>
-        <div className="flex items-center gap-2 rounded-xl border border-line-strong bg-surface p-1.5 pl-4 transition-colors focus-within:border-ink-2">
-          <input
-            id="request"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder="Pay Rahul 10 USDT, or paste an address"
-            autoComplete="off"
-            className="h-9 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
-          />
-          <button
-            type="submit"
-            aria-label="Continue"
-            disabled={busy || !text.trim()}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-canvas transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
-          >
-            <ArrowUp size={18} aria-hidden />
-          </button>
-        </div>
-      </form>
+      <div className="relative mx-auto grid max-w-6xl gap-4 px-4 pb-32 sm:px-6 md:pb-24 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-16 lg:pt-16">
+        <section className="flex min-h-[316px] flex-col items-center justify-center text-center lg:min-h-0 lg:items-start lg:justify-start lg:pt-16 lg:text-left">
+          <h1 className="headline max-w-[10ch] text-[42px] sm:text-5xl lg:max-w-[9ch] lg:text-[92px]">
+            No gas token <em>needed.</em>
+          </h1>
+          <p className="mt-3 max-w-[24ch] text-sm leading-relaxed text-ink-2 sm:text-base lg:mt-7 lg:max-w-sm lg:text-lg">
+            One fee in stablecoins. Makers compete to pay your gas.
+          </p>
+          <LiveQuotes />
+        </section>
 
-      {step.kind === "idle" && !text && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {EXAMPLES.map((example) => (
-            <button
-              key={example}
-              type="button"
-              onClick={() => setText(example)}
-              className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
-            >
-              {example}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mt-4" aria-live="polite">
-        {step.kind === "thinking" && <Progress title="Finding the best price" />}
-        {step.kind === "error" && (
-          <div data-testid="error" className="flex animate-rise gap-2.5 rounded-xl bg-caution-soft px-4 py-3 text-sm leading-relaxed text-caution">
-            <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
-            <p className="min-w-0">{step.message}</p>
-          </div>
-        )}
-        {step.kind === "amount" && (
-          <AmountPrompt
-            to={step.to}
-            onSubmit={(amount) => void prepare(`Pay ${step.to} ${amount}`)}
-            onCancel={() => setStep({ kind: "idle" })}
-          />
-        )}
-        {step.kind === "confirm" && <Confirm plan={step.plan} onPay={pay} onCancel={() => setStep({ kind: "idle" })} />}
-        {step.kind === "paying" && (
-          <Progress
-            title={`Paying ${step.plan.name} ${money(step.plan.amount)} ${step.plan.symbol}`}
-            detail="A maker is paying the gas and settling this onchain."
-          />
-        )}
-        {step.kind === "paid" && <Receipt plan={step.plan} result={step.result} />}
-      </div>
-
-      <div className="mt-10 divide-y divide-line border-y border-line">
-        {address && (
-          <Link
-            href={`/history?payer=${address}`}
-            className="flex items-center justify-between gap-4 py-3.5 text-sm text-ink-2 transition-colors hover:text-ink"
-          >
-            Your gas spend
-            <ChevronRight size={16} className="text-ink-3" aria-hidden />
-          </Link>
-        )}
-        <div className="flex items-center justify-between gap-4 py-3.5">
-          <div className="min-w-0">
-            <p className="text-sm text-ink-2">Your address</p>
-            <p className="mt-1 break-all font-mono text-xs text-ink-3" data-testid="address">
-              {address ?? "–"}
+        <section className="min-w-0">
+          <div className="spot rounded-3xl border border-line-strong bg-surface/85 p-5 shadow-[0_40px_90px_-40px_rgb(0_0_0/0.95)] backdrop-blur-md sm:p-6">
+            <p className="text-sm text-ink-3">Balance</p>
+            <p className="figure mt-2 text-[52px] leading-none sm:text-6xl" data-testid="usdt-balance">
+              {balances ? <Balance value={balances.usdt} /> : <Skeleton className="h-12 w-44 align-bottom" />}{" "}
+              <span className="font-sans text-lg font-medium tracking-normal text-ink-3">USDT</span>
             </p>
+            {balances && balances.usdc > 0n && <p className="mt-2 text-sm tabular-nums text-ink-2">{money(balances.usdc)} USDC</p>}
+            <p className="mt-3 text-[13px] text-ink-3" data-testid="gas-proof">
+              Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "–"} · Transactions you've sent:{" "}
+              {balances ? balances.transactionsSent : "–"}
+            </p>
+
+            <form onSubmit={submit} className="mt-6">
+              <label htmlFor="request" className="sr-only">
+                Who do you want to pay? Type a request or paste an address.
+              </label>
+              <div className="flex items-center gap-2 rounded-2xl border border-line-strong bg-canvas/60 p-1.5 pl-4 transition-[border-color,box-shadow] duration-200 focus-within:border-accent/70 focus-within:shadow-[0_0_0_4px_rgb(255_107_44/0.13)]">
+                <input
+                  id="request"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="Pay Rahul 10 USDT or paste 0x…"
+                  autoComplete="off"
+                  className="h-10 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
+                />
+                <button
+                  type="submit"
+                  aria-label="Continue"
+                  disabled={busy || !text.trim()}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-canvas transition-[background-color,transform] duration-200 hover:bg-accent-bright active:scale-95 disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
+                >
+                  <ArrowUp size={18} strokeWidth={2.4} aria-hidden />
+                </button>
+              </div>
+            </form>
+
+            {step.kind === "idle" && !text && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {EXAMPLES.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => setText(example)}
+                    className="rounded-lg border border-line px-2.5 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div aria-live="polite">
+              {step.kind !== "idle" && <div className="mt-4" />}
+              {step.kind === "thinking" && <Progress title="Finding the best price" />}
+              {step.kind === "error" && (
+                <div data-testid="error" className="flex animate-rise gap-2.5 rounded-2xl bg-caution-soft px-4 py-3 text-sm leading-relaxed text-caution">
+                  <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
+                  <p className="min-w-0">{step.message}</p>
+                </div>
+              )}
+              {step.kind === "amount" && (
+                <AmountPrompt
+                  to={step.to}
+                  onSubmit={(amount) => void prepare(`Pay ${step.to} ${amount}`)}
+                  onCancel={() => setStep({ kind: "idle" })}
+                />
+              )}
+              {step.kind === "confirm" && <Confirm plan={step.plan} onPay={pay} onCancel={() => setStep({ kind: "idle" })} />}
+              {step.kind === "paying" && (
+                <Progress
+                  title={`Paying ${step.plan.name} ${money(step.plan.amount)} ${step.plan.symbol}`}
+                  detail="A maker is paying the gas and settling this onchain."
+                />
+              )}
+              {step.kind === "paid" && <Receipt plan={step.plan} result={step.result} />}
+            </div>
           </div>
-          {address && <CopyButton value={address} />}
-        </div>
+
+          <div className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface/70 backdrop-blur-md">
+            {address && (
+              <Link
+                href={`/history?payer=${address}`}
+                className="group flex items-center justify-between gap-4 px-5 py-3.5 text-sm text-ink-2 transition-colors hover:text-ink"
+              >
+                Your gas spend
+                <ChevronRight size={16} className="text-ink-3 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+              </Link>
+            )}
+            <div className="flex items-center justify-between gap-4 px-5 py-3">
+              <div className="min-w-0">
+                <p className="text-sm text-ink-2">Your address</p>
+                <p className="mt-1 break-all font-mono text-xs text-ink-3" data-testid="address">
+                  {address ?? "–"}
+                </p>
+              </div>
+              {address && <CopyButton value={address} />}
+            </div>
+          </div>
+        </section>
       </div>
-    </section>
+    </main>
+  );
+}
+
+/** The live top of the market, on wide screens where there's room beside the wallet. */
+function LiveQuotes() {
+  const { rows } = useMarket().whitechain;
+  return (
+    <div className="mt-12 hidden w-full max-w-sm lg:block">
+      <p className="mb-1 text-[13px] text-ink-3">Competing for your payment now</p>
+      <AnimatePresence initial={false}>
+        {rows.slice(0, 3).map((row, index) => (
+          <motion.div
+            key={row.key}
+            layout
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.45, ease: EASE }}
+            className="flex items-center justify-between gap-4 border-b border-line py-2.5 text-sm"
+          >
+            <span className={index === 0 ? "font-medium" : "text-ink-2"}>{capitalise(row.style)}</span>
+            <span className={`figure text-[15px] ${index === 0 ? "text-accent-bright" : "text-ink-2"}`}>
+              <Ticker value={money(row.quote.fee)} />
+            </span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+      <Link href="/board" className="group mt-3 inline-flex items-center gap-1 text-sm text-ink-2 transition-colors hover:text-ink">
+        Open the market
+        <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
+      </Link>
+    </div>
   );
 }
 
 /** Cents stand out and the digits past them recede, with nothing rounded away. */
 function Balance({ value }: { value: bigint }) {
   const text = money(value);
-  const cents = text.indexOf(".") + 3;
-  return (
-    <>
-      {text.slice(0, cents)}
-      <span className="text-ink-3">{text.slice(cents)}</span>
-    </>
-  );
+  return <Ticker value={text} dimFrom={text.indexOf(".") + 3} />;
 }
 
 function Progress({ title, detail }: { title: string; detail?: string }) {
   return (
-    <Card className="flex animate-rise items-start gap-3 px-4 py-3.5">
-      <LoaderCircle size={16} className="mt-0.5 shrink-0 animate-spin text-ink-3" aria-hidden />
-      <div className="min-w-0">
-        <p className="text-sm tabular-nums">{title}</p>
-        {detail && <p className="mt-0.5 text-[13px] text-ink-3">{detail}</p>}
+    <div className={STEP}>
+      <p className="text-sm tabular-nums">{title}</p>
+      {detail && <p className="mt-0.5 text-[13px] text-ink-3">{detail}</p>}
+      <div className="mt-3 h-0.5 overflow-hidden rounded-full bg-line">
+        <span className="block h-full w-1/3 animate-sweep rounded-full bg-accent" />
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -391,9 +444,9 @@ function CopyButton({ value }: { value: string }) {
       type="button"
       onClick={copy}
       aria-label={copied ? "Copied" : "Copy address"}
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
     >
-      {copied ? <Check size={16} className="text-positive" aria-hidden /> : <Copy size={16} aria-hidden />}
+      {copied ? <Check size={16} className="text-accent" aria-hidden /> : <Copy size={16} aria-hidden />}
     </button>
   );
 }
@@ -407,7 +460,7 @@ function AmountPrompt({ to, onSubmit, onCancel }: { to: Address; onSubmit: (amou
   }
 
   return (
-    <Card className="animate-rise p-4 sm:p-5">
+    <div className={STEP}>
       <form onSubmit={submit} data-testid="amount-prompt">
         <p className="text-sm text-ink-3">Sending to</p>
         <p className="mt-1 break-all font-mono text-[13px] leading-relaxed text-ink">{to}</p>
@@ -432,7 +485,7 @@ function AmountPrompt({ to, onSubmit, onCancel }: { to: Address; onSubmit: (amou
           </Button>
         </div>
       </form>
-    </Card>
+    </div>
   );
 }
 
@@ -459,9 +512,9 @@ function Confirm({
   const style = capitalise(chosen.style);
 
   return (
-    <Card className="animate-rise p-4 sm:p-5">
+    <div className={STEP}>
       <p className="text-sm text-ink-3">Review payment</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+      <p className="figure mt-1 text-3xl">
         {money(plan.amount)} {plan.symbol}
       </p>
       <p className="mt-0.5 text-sm text-ink-2">to {plan.name}</p>
@@ -509,12 +562,12 @@ function Confirm({
       )}
 
       {picking && (
-        <fieldset data-testid="maker-picker" className="mt-1 animate-rise divide-y divide-line overflow-hidden rounded-lg border border-line">
+        <fieldset data-testid="maker-picker" className="mt-1 animate-rise divide-y divide-line overflow-hidden rounded-xl border border-line">
           <legend className="sr-only">Choose a maker</legend>
           {plan.quotes.map((entry) => (
             <label
               key={entry.key}
-              className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-raised has-[:checked]:bg-raised"
+              className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-canvas/40 has-[:checked]:bg-accent-soft"
             >
               <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
                 <input
@@ -552,7 +605,7 @@ function Confirm({
       )}
 
       {canMerchantPay && (
-        <label className="mt-2 flex cursor-pointer items-center justify-between gap-4 rounded-lg bg-raised px-3 py-2.5 text-sm text-ink-2">
+        <label className="mt-2 flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-canvas/50 px-3 py-2.5 text-sm text-ink-2">
           {plan.name} offers to cover the fee
           <input
             type="checkbox"
@@ -576,19 +629,36 @@ function Confirm({
           Confirm
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
 function Receipt({ plan, result }: { plan: Plan; result: PaymentResult }) {
   const merchantCovered = result.feePaidBy === "merchant";
   return (
-    <Card className="animate-rise p-4 sm:p-5">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-positive-soft text-positive">
-          <Check size={14} strokeWidth={2.5} aria-hidden />
-        </span>
-        <p className="text-[15px] font-medium tabular-nums">
+    <div className={STEP}>
+      <div className="flex items-center gap-3">
+        <motion.span
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 420, damping: 22 }}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-canvas shadow-[0_0_28px_rgb(255_107_44/0.6)]"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+            <motion.path
+              d="M5 12.5l4.5 4.5L19 7.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.5, delay: 0.15, ease: EASE }}
+            />
+          </svg>
+        </motion.span>
+        <p className="min-w-0 text-[15px] font-medium tabular-nums">
           Paid {plan.name} {money(plan.amount)} {plan.symbol}
         </p>
       </div>
@@ -601,6 +671,6 @@ function Receipt({ plan, result }: { plan: Plan; result: PaymentResult }) {
       <div className="mt-2">
         <External href={result.explorerUrl}>View receipt</External>
       </div>
-    </Card>
+    </div>
   );
 }

@@ -1,10 +1,13 @@
 "use client";
 
 import { explorerTx, fetchFills, resolveIdentity, type Fill } from "@octane/sdk";
+import { motion } from "motion/react";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { isAddress, isAddressEqual, type Address } from "viem";
-import { Badge, Button, Empty, External, List, PageHeader, Skeleton, Stat } from "@/components/ui";
+import { EASE } from "@/components/providers";
+import { Ticker } from "@/components/ticker";
+import { Badge, Button, Empty, External, PageHeader, Skeleton, Stat } from "@/components/ui";
 import { money } from "@/lib/format";
 import { INDEXER, getMarket } from "@/lib/market";
 
@@ -56,9 +59,19 @@ export function History() {
   const fees = fills?.reduce((sum, fill) => (coveredForPayer(fill) ? sum : sum + fill.fee), 0n) ?? 0n;
 
   return (
-    <section className="animate-rise">
+    <section>
       <PageHeader
-        title={maker ? "Maker statement" : "Your gas spend"}
+        title={
+          maker ? (
+            <>
+              Maker <em>statement.</em>
+            </>
+          ) : (
+            <>
+              Your gas <em>spend.</em>
+            </>
+          )
+        }
         description={
           <>
             <span className="font-mono">{label}</span> · read straight from Arkiv
@@ -66,19 +79,29 @@ export function History() {
         }
       />
 
-      <div className="mt-6 grid grid-cols-2 gap-2 sm:gap-3">
-        <Stat label="Payments" value={total === undefined ? <Skeleton className="h-6 w-8" /> : total.toString()} />
-        <Stat label={maker ? "Earned on this page" : "Fees on this page"} value={fills ? money(fees) : <Skeleton className="h-6 w-24" />} />
+      <div className="mt-10 grid grid-cols-2 gap-3">
+        <Stat large label="Payments" value={total === undefined ? <Skeleton className="h-11 w-12" /> : <Ticker value={total.toString()} />} />
+        <Stat
+          large
+          label={maker ? "Earned on this page" : "Fees on this page"}
+          value={fills ? <Ticker value={money(fees)} /> : <Skeleton className="h-11 w-32" />}
+        />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-8">
         {failed && <p className="mb-3 text-sm text-caution">Couldn't read the history just now.</p>}
         {fills === undefined && !failed && <Skeleton className="block h-16 w-full rounded-xl" />}
         {fills?.length === 0 && <Empty>Nothing yet.</Empty>}
         {fills && fills.length > 0 && (
-          <List>
-            {fills.map((fill) => (
-              <article key={fill.key} className="flex items-center justify-between gap-4 px-4 py-3">
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+            {fills.map((fill, index) => (
+              <motion.article
+                key={fill.key}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, delay: Math.min(index, 8) * 0.04, ease: EASE }}
+                className="flex items-center justify-between gap-4 border-b border-line px-4 py-3.5 last:border-b-0 sm:px-5"
+              >
                 <div>
                   <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium tabular-nums">
                     <span>
@@ -89,9 +112,9 @@ export function History() {
                   <p className="mt-0.5 text-xs text-ink-3">{new Date(Number(fill.ts) * 1000).toLocaleString()}</p>
                 </div>
                 <External href={explorerTx(Number(fill.chainId), fill.txHash)}>Receipt</External>
-              </article>
+              </motion.article>
             ))}
-          </List>
+          </div>
         )}
       </div>
 

@@ -193,6 +193,7 @@ Octane was built with heavy AI assistance, by one human builder and Claude Code 
 - EF's [mempool-workshop](https://github.com/forshtat/mempool-workshop) and [sidecar](https://github.com/forshtat/mempool-workshop-sidecar), the references for frame transactions.
 - [`@forshtat/hegota-support`](https://github.com/forshtat/hegota-support) for frame opcodes in Solidity and frame transaction encoding.
 - Arkiv's SDK, plugin and MCP server; Whitechain's docs and `whitechain-dev` skill.
+- Type: [Bricolage Grotesque](https://github.com/ateliertriay/bricolage) and [Instrument Serif](https://github.com/Instrument/instrument-serif) (both SIL Open Font License), and [Geist](https://github.com/vercel/geist-font). Icons: [Lucide](https://lucide.dev). Animation: [Motion](https://motion.dev).
 
 ## License
 

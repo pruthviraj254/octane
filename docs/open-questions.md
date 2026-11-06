@@ -33,3 +33,5 @@ Log anything that can't be verified. Move items to Answered with the source.
 ## EF devnet outage, Nov 6
 
 The devnet stopped at block 408262 around 04:28 IST. At about 10:06 IST the alt mempool refused a submission with `IO error: No space left on device` on `/usr/app/data/userOps/000085.log`. Reads and simulation still work. Whether the full disk also stopped block production isn't confirmed. For EF: can the disk be cleared and the chain restarted, and will addresses change?
+
+Update, Nov 6 afternoon: the devnet is producing blocks again, but it was reset (block 329 at last check). USDC, the staking registry and the expiry verifier are at the same addresses. Octane's factory, implementation and clone are gone, and old receipts return nothing, including the mined transaction in the README. `docs/evidence/patha-admission.json` still holds that transaction's full report. `scripts/setup-devnet.ts` rebuilds Octane's side, and the README's Path A links need new transactions after that.
