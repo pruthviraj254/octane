@@ -1,0 +1,16 @@
+[Unit]
+Description=Octane website
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/octane/apps/web
+EnvironmentFile=/home/ubuntu/octane/deploy/hosted.env
+Environment=PATH=/opt/node/bin:/usr/bin:/bin
+ExecStart=/opt/node/bin/node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

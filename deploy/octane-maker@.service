@@ -1,0 +1,18 @@
+[Unit]
+Description=Octane maker %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/octane/apps/makers
+EnvironmentFile=/home/ubuntu/octane/deploy/hosted.env
+Environment=PATH=/opt/node/bin:/usr/bin:/bin
+ExecStart=/opt/node/bin/node --import tsx src/index.ts %i
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

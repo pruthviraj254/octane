@@ -1,0 +1,29 @@
+octane.rishabhprajapati.me {
+	encode gzip
+
+	# The desk starts and stops makers, so it never answers the public. Its owner reaches it
+	# over SSH instead, which goes straight to the app and skips this file.
+	handle /api/desk* {
+		respond `{"error":"The desk only runs on your own machine."}` 403
+	}
+
+	handle_path /m/cautious/* {
+		reverse_proxy 127.0.0.1:8801
+	}
+	handle_path /m/aggressive/* {
+		reverse_proxy 127.0.0.1:8802
+	}
+	handle_path /m/balancer/* {
+		reverse_proxy 127.0.0.1:8803
+	}
+	handle_path /m/nova/* {
+		reverse_proxy 127.0.0.1:8804
+	}
+	handle_path /m/eth/* {
+		reverse_proxy 127.0.0.1:8808
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
