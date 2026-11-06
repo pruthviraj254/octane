@@ -1,9 +1,9 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { redactAccessKey } from "@octane/sdk";
 
 const envPath = fileURLToPath(new URL("../../.env", import.meta.url));
-process.loadEnvFile(envPath);
+if (existsSync(envPath)) process.loadEnvFile(envPath);
 
 /** Reads a required setting. Never logs the value. */
 export function env(name: string): string {

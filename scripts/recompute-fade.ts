@@ -9,14 +9,18 @@ import {
   whitechainSepolia,
 } from "@octane/sdk";
 import { createPublicClient, hexToString, http, isAddress, type Address, type Hash } from "viem";
-import { env, envHex, run } from "./lib/env.ts";
+import { run } from "./lib/env.ts";
 
 /**
  * Rebuilds a maker's reputation from public data alone: its Swarm journal, checked against
  * Arkiv and Whitechain. It uses the same formula as the indexer, so the numbers must match the
  * board. Usage: pnpm recompute-fade --maker 0x...
+ *
+ * It needs no .env and no keys, so anyone can check the board from a clean clone.
  */
 const SAMPLE = 5;
+const PUBLIC_INDEXER: Address = "0xb547061EE3090b42E66e2F7F9378fbEd6863FE8E";
+const PUBLIC_SWARM_GATEWAY = "https://bzz.limo";
 
 function pick<T>(items: readonly T[], count: number): T[] {
   if (items.length <= count) return [...items];
@@ -29,20 +33,22 @@ await run(async () => {
   const maker = (flag >= 0 ? process.argv[flag + 1] : undefined) as Address | undefined;
   if (!maker || !isAddress(maker)) throw new Error("usage: recompute-fade --maker 0x...");
 
-  const reader = arkivReader(env("ARKIV_ACCESS_KEY"));
-  const stats = await fetchMakerStats(reader, { indexer: envHex("INDEXER_ADDRESS"), maker });
+  // An empty key selects Arkiv's keyless public endpoint.
+  const reader = arkivReader(process.env.ARKIV_ACCESS_KEY || "");
+  const indexer = (process.env.INDEXER_ADDRESS || PUBLIC_INDEXER) as Address;
+  const stats = await fetchMakerStats(reader, { indexer, maker });
   if (!stats) throw new Error("the indexer has published no stats for this maker yet");
 
   const { journalRef, from, to } = JSON.parse(hexToString(stats.inputs)) as { journalRef: string; from: number; to: number };
   console.log(`journal ${journalRef}, window ${from} to ${to}`);
 
-  const files = await downloadJournalChain(env("SWARM_BEE_URL"), journalRef);
+  const files = await downloadJournalChain(process.env.SWARM_BEE_URL || PUBLIC_SWARM_GATEWAY, journalRef);
   console.log(`read ${files.length} journal file(s) from Swarm`);
   const { inputs, quoted, fills } = inputsFromJournal(files, from, to);
   const score = computeFade(inputs);
 
   // Spot checks that the journal is telling the truth.
-  const whitechain = createPublicClient({ chain: whitechainSepolia, transport: http(env("WHITECHAIN_RPC_URL"), { timeout: 15_000 }) });
+  const whitechain = createPublicClient({ chain: whitechainSepolia, transport: http(process.env.WHITECHAIN_RPC_URL || undefined, { timeout: 15_000 }) });
   let writesChecked = 0;
   for (const line of pick(quoted.filter((entry) => entry.tx), SAMPLE)) {
     const tx = await reader.getTransaction({ hash: line.tx as Hash }).catch(() => undefined);
