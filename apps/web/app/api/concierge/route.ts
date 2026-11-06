@@ -1,4 +1,4 @@
-import { CONCIERGE_SYSTEM, parseConciergeReply, parseIntent } from "@octane/sdk";
+import { CONCIERGE_SYSTEM, parseConciergeReply, parseIntent, settledWithoutLlm } from "@octane/sdk";
 import { createLlm } from "@octane/sdk/llm";
 import { getAddress, isAddress } from "viem";
 import { serverSetting } from "@/lib/server-settings";
@@ -18,18 +18,21 @@ export async function POST(request: Request) {
   const text = body.text.trim();
 
   let intent = parseIntent(text);
-  try {
-    const llm = createLlm({
-      provider: serverSetting("LLM_PROVIDER"),
-      apiKey: serverSetting("ANTHROPIC_API_KEY"),
-      apiModel: serverSetting("ANTHROPIC_MODEL"),
-      cliModel: serverSetting("LLM_MODEL"),
-      timeoutMs: 15_000,
-    });
-    if (llm) intent = parseConciergeReply(await llm.complete(CONCIERGE_SYSTEM, text), text);
-  } catch {
-    // The plain parser's answer stands, so a payment never depends on the LLM.
+  if (!settledWithoutLlm(text)) {
+    try {
+      const llm = createLlm({
+        provider: serverSetting("LLM_PROVIDER"),
+        apiKey: serverSetting("ANTHROPIC_API_KEY"),
+        apiModel: serverSetting("ANTHROPIC_MODEL"),
+        cliModel: serverSetting("LLM_MODEL"),
+        timeoutMs: 15_000,
+      });
+      if (llm) intent = parseConciergeReply(await llm.complete(CONCIERGE_SYSTEM, text), text);
+    } catch {
+      // The plain parser's answer stands, so a payment never depends on the LLM.
+    }
   }
+  if (intent.action === "amount") return Response.json({ intent, address: getAddress(intent.to) });
   if (intent.action !== "pay") return Response.json({ intent });
 
   const address = isAddress(intent.to) ? getAddress(intent.to) : contacts[intent.to.toLowerCase()];

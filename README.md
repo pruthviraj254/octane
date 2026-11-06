@@ -29,7 +29,7 @@ Built at ETHGlobal Mumbai, November 2026.
 | Path B: gasless USDT | [A payment chosen from the live board](https://explorer.testnet.whitechain.io/tx/0x5badcb8b7273eb0c98923932d93d7dd640981a1a840838bfc5153b0d16656439), settled by the cheapest of three competing makers |
 | Live board on Arkiv | Three AI makers refreshing every ~10s; `/board` reads Arkiv directly |
 | AI agents | [Claude paid 3 people](https://explorer.testnet.whitechain.io/tx/0x456a105cd5098572fec44cf817ca0965f7efa14515573b2a46f7e8af8123273c) through the MCP server, holding zero WBT |
-| People | The wallet at `/`: "Pay Rahul 10 USDT" or "Rahul ko 10 USDC bhejo" |
+| People | The wallet at `/`: "Pay Rahul 10 USDT", "Rahul ko 10 USDC bhejo", or a pasted address |
 | Merchant-pays | [The merchant covers the fee](https://explorer.testnet.whitechain.io/tx/0x7cbd94b25ecc98eefd23fddf93f501b08fa0e34e310a2ecee2e37ded2b55f4a2) with a signed opt-in |
 | Gas auctions | An agent posts a job on Arkiv, makers bid, and the [cheapest reliable bid settles](https://explorer.testnet.whitechain.io/tx/0xed2421b81b45bcf9e32bf74b2211784ac13a4f7fe9fc702a19fad7b1be80fb2e) |
 | Batched payouts | [8 people paid in one frame transaction](https://explorer.altmempool.wtf/tx/0x75002521cff97269a8925500cc83ef20c4739d0b42cbd7c9ad330124f472e0e2) for one fee |

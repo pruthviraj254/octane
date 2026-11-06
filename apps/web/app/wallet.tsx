@@ -22,6 +22,7 @@ import {
   createPublicClient,
   erc20Abi,
   http,
+  isAddress,
   isAddressEqual,
   parseGwei,
   parseUnits,
@@ -30,7 +31,7 @@ import {
 } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
 import { Badge, Button, Card, Detail, External, Skeleton } from "@/components/ui";
-import { capitalise, money } from "@/lib/format";
+import { capitalise, money, shortAddress } from "@/lib/format";
 import { INDEXER, MERCHANT, getMarket, whitechain } from "@/lib/market";
 import { loadWallet } from "@/lib/wallet";
 
@@ -71,6 +72,7 @@ interface Plan {
 type Step =
   | { kind: "idle" }
   | { kind: "thinking" }
+  | { kind: "amount"; to: Address }
   | { kind: "confirm"; plan: Plan }
   | { kind: "paying"; plan: Plan }
   | { kind: "paid"; plan: Plan; result: PaymentResult }
@@ -121,19 +123,23 @@ export function Wallet() {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  async function prepare(event: React.FormEvent) {
+  function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!text.trim()) return;
+    if (text.trim()) void prepare(text);
+  }
+
+  async function prepare(request: string) {
     setStep({ kind: "thinking" });
     try {
       const response = await fetch("/api/concierge", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: request }),
       });
       const body = (await response.json()) as { intent?: Intent; address?: Address; error?: string };
       const recipient = body.address;
       if (!body.intent) throw new Error(body.error ?? "The concierge didn't answer.");
+      if (body.intent.action === "amount" && recipient) return setStep({ kind: "amount", to: recipient });
       if (body.intent.action !== "pay" || !body.address) {
         const reply = body.intent.action === "unknown" ? body.intent.reply : "I couldn't read that.";
         return setStep({ kind: "error", message: reply });
@@ -169,7 +175,7 @@ export function Wallet() {
       setStep({
         kind: "confirm",
         plan: {
-          name: body.intent.to,
+          name: isAddress(body.intent.to) ? shortAddress(body.intent.to) : body.intent.to,
           to: body.address,
           amount,
           chain,
@@ -255,16 +261,16 @@ export function Wallet() {
         {balances ? balances.transactionsSent : "–"}
       </p>
 
-      <form onSubmit={prepare} className="mt-8">
+      <form onSubmit={submit} className="mt-8">
         <label htmlFor="request" className="sr-only">
-          Who do you want to pay?
+          Who do you want to pay? Type a request or paste an address.
         </label>
         <div className="flex items-center gap-2 rounded-xl border border-line-strong bg-surface p-1.5 pl-4 transition-colors focus-within:border-ink-2">
           <input
             id="request"
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Pay Rahul 10 USDT"
+            placeholder="Pay Rahul 10 USDT, or paste an address"
             autoComplete="off"
             className="h-9 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
           />
@@ -301,6 +307,13 @@ export function Wallet() {
             <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
             <p className="min-w-0">{step.message}</p>
           </div>
+        )}
+        {step.kind === "amount" && (
+          <AmountPrompt
+            to={step.to}
+            onSubmit={(amount) => void prepare(`Pay ${step.to} ${amount}`)}
+            onCancel={() => setStep({ kind: "idle" })}
+          />
         )}
         {step.kind === "confirm" && <Confirm plan={step.plan} onPay={pay} onCancel={() => setStep({ kind: "idle" })} />}
         {step.kind === "paying" && (
@@ -385,6 +398,44 @@ function CopyButton({ value }: { value: string }) {
   );
 }
 
+function AmountPrompt({ to, onSubmit, onCancel }: { to: Address; onSubmit: (amount: string) => void; onCancel: () => void }) {
+  const [amount, setAmount] = useState("");
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (amount.trim()) onSubmit(amount.trim());
+  }
+
+  return (
+    <Card className="animate-rise p-4 sm:p-5">
+      <form onSubmit={submit} data-testid="amount-prompt">
+        <p className="text-sm text-ink-3">Sending to</p>
+        <p className="mt-1 break-all font-mono text-[13px] leading-relaxed text-ink">{to}</p>
+        <label htmlFor="amount" className="mt-4 block text-sm text-ink-3">
+          How much?
+        </label>
+        <input
+          id="amount"
+          autoFocus
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          placeholder="10 USDT"
+          autoComplete="off"
+          className="mt-1.5 h-10 w-full rounded-lg border border-line-strong bg-transparent px-3 text-[15px] tabular-nums outline-none transition-colors placeholder:text-ink-3 focus:border-ink-2"
+        />
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!amount.trim()}>
+            Continue
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 function Confirm({
   plan,
   onPay,
@@ -414,6 +465,9 @@ function Confirm({
         {money(plan.amount)} {plan.symbol}
       </p>
       <p className="mt-0.5 text-sm text-ink-2">to {plan.name}</p>
+      <p data-testid="recipient" className="mt-1 break-all font-mono text-xs leading-relaxed text-ink-3">
+        {plan.to}
+      </p>
 
       <dl className="mt-3 divide-y divide-line border-t border-line">
         <Detail label="Fee">

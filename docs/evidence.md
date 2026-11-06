@@ -60,6 +60,16 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 | [Default, no override](https://explorer.testnet.whitechain.io/tx/0x9132fdbd8269bbb46c02446bfac0f268a7a2d9dcb5a1721e26bda8052c978723) | Settled by the recommended maker |
 | [Chose Aggressive with the merchant covering the fee](https://explorer.testnet.whitechain.io/tx/0x2373129ee7e53f79ddfd47c58531589b6c7ee6588d7d54f7e3369b726e65bc35) | Payer paid 0.20, merchant netted 0.13218, Aggressive earned 0.06782 |
 
+**Paying a pasted address in the wallet, Nov 6:**
+| Case | Result |
+|---|---|
+| [Typed `Pay 0x461b… 0.01 USDT`](https://explorer.testnet.whitechain.io/tx/0x038fef6af0978fbf8dd2a67fd8821bbf744b4de5a75e26a7715aac82b9374e57) | Paid, with the full address on the review card |
+| [Pasted only the address, then entered 0.02](https://explorer.testnet.whitechain.io/tx/0x9b63ab017510b908171da6f535ee3f793dfbf848e2da6c879317a362c25fe7ec) | Paid after an amount prompt |
+| Recipient and payer change across both | +0.03 USDT and −0.16 USDT |
+| One character short, one long, bad checksum, two addresses | All refused before any review |
+
+**An agent choosing its maker, Nov 6:** [`send_sponsored` with Balancer's address](https://explorer.testnet.whitechain.io/tx/0xe60d99b70324848eb242bf05079cf2c3f1c6276d6b08b5cca1e258623b813b7d) settled through Balancer for 0.076025 USDT, though cheaper makers were live.
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
