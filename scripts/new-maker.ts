@@ -17,7 +17,7 @@ import { env, envHex, run, saveEnv } from "./lib/env.ts";
 const MIN_WBT = parseEther("0.01"); // Below this a maker leaves the board.
 const MIN_TGLM = parseEther("0.01");
 const LOAN_WBT = parseEther("0.02"); // About 13 payments above the minimum.
-const LOAN_TGLM = parseEther("0.05"); // About an hour and a half of quotes.
+const LOAN_TGLM = parseEther("0.25"); // About 4 hours on two markets, 7 on one.
 const MIN_ETH = parseEther("0.13"); // The clone's float, its stake, and gas to set them up.
 const LOAN_ETH = parseEther("0.2");
 const LAST_BUILT_IN_PORT = 8803;

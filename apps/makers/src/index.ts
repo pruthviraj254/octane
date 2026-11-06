@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { request } from "node:https";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { ExpirationTime } from "@arkiv-network/sdk";
 import { addr, str } from "@arkiv-network/sdk/schema";
 import {
@@ -286,19 +287,15 @@ async function tick(): Promise<void> {
   });
 }
 
-const BOOT_ATTEMPTS = 4;
-const BOOT_RETRY_MS = 5_000;
+const BOOT_RETRY_MS = 10_000;
 /** About two minutes of failed ticks. */
 const FAILED_TICKS_BEFORE_RESTART = 4;
 const PROBE_TIMEOUT_MS = 8_000;
 const watchdog = new TickWatchdog(FAILED_TICKS_BEFORE_RESTART);
 
-/**
- * Asks Arkiv over a brand-new socket, outside the pool this process's own reads use. If this
- * works while those reads fail, the process is stuck, not the network.
- */
-function arkivReachable(): Promise<boolean> {
-  const url = reader.chain.rpcUrls.default.http[0];
+/** Asks over a brand-new socket, outside the pool this process's own reads use. */
+function reachable(url: string): Promise<boolean> {
+  const request = url.startsWith("https:") ? httpsRequest : httpRequest;
   return new Promise((resolve) => {
     const probe = request(
       url,
@@ -312,6 +309,12 @@ function arkivReachable(): Promise<boolean> {
     probe.on("error", () => resolve(false));
     probe.end('{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}');
   });
+}
+
+/** If both chains answer a fresh socket while this process's reads fail, the process is stuck. */
+async function networkHealthy(): Promise<boolean> {
+  const [arkiv, whitechain] = await Promise.all([reachable(reader.chain.rpcUrls.default.http[0] as string), reachable(setting("WHITECHAIN_RPC_URL"))]);
+  return arkiv && whitechain;
 }
 
 /** Starts a fresh copy of this maker and steps aside. */
@@ -339,22 +342,30 @@ async function shutdown(): Promise<void> {
   process.exit(0);
 }
 
-/** A blip while starting shouldn't end a maker, least of all during a restart. */
-async function retryAtBoot(step: () => Promise<void>): Promise<void> {
-  for (let attempt = 1; ; attempt += 1) {
+/** Only a wrong contract or an empty wallet can't be waited out. */
+const fatalAtBoot = (error: unknown) => /domain mismatch|Execution error|insufficient funds/i.test(String(error));
+
+/** An outage while starting must never end a maker, least of all during a restart. */
+async function waitForNetwork(step: () => Promise<void>): Promise<void> {
+  let told = false;
+  for (;;) {
     try {
       return await step();
     } catch (error) {
-      if (attempt >= BOOT_ATTEMPTS) throw error;
+      if (fatalAtBoot(error)) throw error;
+      if (!told) journal.write("boot-waiting", { detail: redactAccessKey(String(error)).slice(0, 200) });
+      told = true;
       await new Promise((resolve) => setTimeout(resolve, BOOT_RETRY_MS));
     }
   }
 }
 
-await retryAtBoot(() => assertUsdtDomain(client));
-await retryAtBoot(publishProfile).catch((error: unknown) => {
+claimProcess(config.id);
+await waitForNetwork(() => assertUsdtDomain(client));
+await waitForNetwork(publishProfile).catch((error: unknown) => {
   console.error(`Maker ${id} couldn't write its profile to Arkiv: ${redactAccessKey(String(error)).split("\n")[0]?.slice(0, 200)}`);
   console.error(`A new maker usually just needs funds. Check with: pnpm new-maker ${id}`);
+  releaseProcess(config.id);
   process.exit(1);
 });
 
@@ -380,7 +391,6 @@ process.on("SIGTERM", () => void shutdown());
 process.on("SIGUSR2", () => restart("asked to"));
 
 journal.write("started", { address: account.address, endpoint, spread: config.spread });
-claimProcess(config.id);
 watchClone();
 
 // Auctions: bid a little under the board price, because a batch is guaranteed work.
@@ -479,9 +489,11 @@ while (!stopping) {
     watchdog.succeeded();
   } catch (error) {
     // One bad tick isn't fatal: the entity outlives two missed refreshes.
-    journal.write("tick-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
-    // A restart can't fix a dead network, and booting into one would stop this maker for good.
-    if (watchdog.failed() && (await arkivReachable())) restart("reads keep failing while Arkiv answers");
+    const detail = redactAccessKey(String(error)).slice(0, 200);
+    journal.write("tick-failed", { detail });
+    // A failed write usually means an empty wallet, and a restart can't fix a dead network.
+    const stuckReads = !detail.includes("EntityMutationError");
+    if (watchdog.failed() && stuckReads && (await networkHealthy())) restart("reads keep failing while both chains answer");
   }
   await new Promise((resolve) => setTimeout(resolve, Math.max(0, REFRESH_MS - (Date.now() - started))));
 }

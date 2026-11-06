@@ -114,7 +114,7 @@ The maker desk at `/makers/desk` does all of this on screen:
 
 1. **Choose where.** Whitechain if you hold spare WBT, the EF devnet if you hold spare ETH, or both.
 2. **Create a desk wallet.** A maker sends a transaction for every payment it carries, so it needs a wallet that signs around the clock. The key stays in `.env` on your machine.
-3. **Fund it.** On Whitechain, WBT pays gas, about 0.00075 WBT a payment. On the EF devnet, your own staked paymaster pays it: 0.1 ETH of float and 0.012 ETH staked. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour. On testnet, the desk can borrow all of this.
+3. **Fund it.** On Whitechain, WBT pays gas, about 0.00075 WBT a payment. On the EF devnet, your own staked paymaster pays it: 0.1 ETH of float and 0.012 ETH staked. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour per market. On testnet, the desk can borrow all of this.
 4. **Choose who prices.** With no AI agent, your rate holds exactly until you change it, and no AI is called. With an agent, the formula reprices about every 10 seconds and the desk shows its working. You can force a price over the agent at any time, and it keeps calculating beside your price until you hand back. You can also set and extend a time limit. Fees stay between 0.065 and 0.50 whoever sets them. The agent prices from Whitechain's pool, so an EF-only maker sets its own rate.
 5. **Go live.** Fees arrive as stablecoins in the same transaction as each payment. You can add or leave a market later.
 6. **Own it from your wallet.** Link a browser wallet, fund the desk from it, and withdraw earnings back to it. Earnings can only go to the linked owner.
