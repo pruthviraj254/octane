@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { request } from "node:https";
 import { ExpirationTime } from "@arkiv-network/sdk";
 import { addr, str } from "@arkiv-network/sdk/schema";
 import {
@@ -39,7 +41,7 @@ import {
   optionalSetting,
   setting,
 } from "./config.ts";
-import { ControlFile, claimProcess, feeFor, pastLimit, releaseProcess, signedUntil, type Control } from "./control.ts";
+import { ControlFile, TickWatchdog, claimProcess, feeFor, pastLimit, releaseProcess, signedUntil, type Control } from "./control.ts";
 import { Journal } from "./journal.ts";
 import { JournalPublisher } from "./publish.ts";
 import { priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
@@ -275,6 +277,45 @@ async function tick(): Promise<void> {
   });
 }
 
+const BOOT_ATTEMPTS = 4;
+const BOOT_RETRY_MS = 5_000;
+/** About two minutes of failed ticks. */
+const FAILED_TICKS_BEFORE_RESTART = 4;
+const PROBE_TIMEOUT_MS = 8_000;
+const watchdog = new TickWatchdog(FAILED_TICKS_BEFORE_RESTART);
+
+/**
+ * Asks Arkiv over a brand-new socket, outside the pool this process's own reads use. If this
+ * works while those reads fail, the process is stuck, not the network.
+ */
+function arkivReachable(): Promise<boolean> {
+  const url = reader.chain.rpcUrls.default.http[0];
+  return new Promise((resolve) => {
+    const probe = request(
+      url,
+      { method: "POST", agent: false, timeout: PROBE_TIMEOUT_MS, headers: { "content-type": "application/json" } },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode === 200);
+      },
+    );
+    probe.on("timeout", () => probe.destroy());
+    probe.on("error", () => resolve(false));
+    probe.end('{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}');
+  });
+}
+
+/** Starts a fresh copy of this maker and steps aside. */
+function restart(reason: string): void {
+  if (stopping) return;
+  stopping = true;
+  journal.write("restarting", { reason });
+  releaseProcess(config!.id);
+  server.close();
+  spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], { stdio: "inherit", env: process.env }).unref();
+  process.exit(0);
+}
+
 async function shutdown(): Promise<void> {
   if (stopping) return;
   stopping = true;
@@ -289,8 +330,20 @@ async function shutdown(): Promise<void> {
   process.exit(0);
 }
 
-await assertUsdtDomain(client);
-await publishProfile().catch((error: unknown) => {
+/** A blip while starting shouldn't end a maker, least of all during a restart. */
+async function retryAtBoot(step: () => Promise<void>): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await step();
+    } catch (error) {
+      if (attempt >= BOOT_ATTEMPTS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, BOOT_RETRY_MS));
+    }
+  }
+}
+
+await retryAtBoot(() => assertUsdtDomain(client));
+await retryAtBoot(publishProfile).catch((error: unknown) => {
   console.error(`Maker ${id} couldn't write its profile to Arkiv: ${redactAccessKey(String(error)).split("\n")[0]?.slice(0, 200)}`);
   console.error(`A new maker usually just needs funds. Check with: pnpm new-maker ${id}`);
   process.exit(1);
@@ -315,6 +368,7 @@ const server = startRelayer({
 });
 process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
+process.on("SIGUSR2", () => restart("asked to"));
 
 journal.write("started", { address: account.address, endpoint, spread: config.spread });
 claimProcess(config.id);
@@ -413,9 +467,12 @@ while (!stopping) {
   const started = Date.now();
   try {
     await tick();
+    watchdog.succeeded();
   } catch (error) {
     // One bad tick isn't fatal: the entity outlives two missed refreshes.
     journal.write("tick-failed", { detail: redactAccessKey(String(error)).slice(0, 200) });
+    // A restart can't fix a dead network, and booting into one would stop this maker for good.
+    if (watchdog.failed() && (await arkivReachable())) restart("reads keep failing while Arkiv answers");
   }
   await new Promise((resolve) => setTimeout(resolve, Math.max(0, REFRESH_MS - (Date.now() - started))));
 }

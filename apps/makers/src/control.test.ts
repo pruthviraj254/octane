@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_FEE, MIN_FEE } from "./config.ts";
-import { feeFor, parseControl, pastLimit, signedUntil } from "./control.ts";
+import { TickWatchdog, feeFor, parseControl, pastLimit, signedUntil } from "./control.ts";
 
 describe("parseControl", () => {
   it("reads a manual price and time limit", () => {
@@ -45,5 +45,24 @@ describe("time limits", () => {
     expect(signedUntil({ mode: "auto", until: 100n }, 205n)).toBe(100n);
     expect(signedUntil({ mode: "auto", until: 900n }, 205n)).toBe(205n);
     expect(signedUntil({ mode: "auto" }, 205n)).toBe(205n);
+  });
+});
+
+describe("TickWatchdog", () => {
+  it("waits for the limit", () => {
+    const watchdog = new TickWatchdog(3);
+    expect([watchdog.failed(), watchdog.failed(), watchdog.failed()]).toEqual([false, false, true]);
+  });
+
+  it("forgives failures once a tick succeeds", () => {
+    const watchdog = new TickWatchdog(2);
+    watchdog.failed();
+    watchdog.succeeded();
+    expect(watchdog.failed()).toBe(false);
+  });
+
+  it("keeps saying so while failures continue", () => {
+    const watchdog = new TickWatchdog(1);
+    expect([watchdog.failed(), watchdog.failed()]).toEqual([true, true]);
   });
 });

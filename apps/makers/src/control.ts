@@ -70,3 +70,23 @@ export function claimProcess(maker: string): void {
 export function releaseProcess(maker: string): void {
   rmSync(new URL(`${maker}.pid`, dataDir), { force: true });
 }
+
+/**
+ * Counts failed ticks in a row. A maker can get stuck with a healthy network, so past the limit
+ * it's worth checking whether a restart would help.
+ */
+export class TickWatchdog {
+  private failures = 0;
+
+  constructor(private readonly limit: number) {}
+
+  succeeded(): void {
+    this.failures = 0;
+  }
+
+  /** True once the failures have reached the limit. */
+  failed(): boolean {
+    this.failures += 1;
+    return this.failures >= this.limit;
+  }
+}

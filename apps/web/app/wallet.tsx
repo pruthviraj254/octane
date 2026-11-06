@@ -161,7 +161,7 @@ export function Wallet() {
         });
       }
       const { quotes } = await getQuotes(getMarket(), chain);
-      if (quotes.length === 0) throw new Error("No maker is quoting right now. Try again in a moment.");
+      if (quotes.length === 0) throw new Error(`No maker is quoting ${body.intent.token} right now. Try again in a moment.`);
 
       // The fade detector: a maker with a poor public record is passed over, even if it's cheapest.
       const scores = await fetchFadeScores(getMarket().reader, {
