@@ -177,3 +177,14 @@ A fresh clone of the public repo, with no `.env` and no keys:
 - With `.env.example` copied to `.env`, `/board` rendered all 4 live makers in headless Chrome.
 - The keyless read route answered 60 of 60 reads at the page's polling rate over 60 seconds.
 - All 30 Whitechain and EF transaction links in the docs have a successful receipt. The README's keyless Arkiv query returned 4 rows, and the Swarm example link opened.
+
+## Hosted site, Nov 6
+
+<https://octane.rishabhprajapati.me> runs on one EC2 `t3.medium` in Mumbai. Measured after moving the makers:
+
+- All 4 makers quoted with no failed ticks over the first 10 minutes (52 to 55 quotes each), and published journals to Swarm.
+- The makers' regime calls and the chat ran through the real Anthropic API for the first time. "send rahul two dollars please" came back from the model in 1.4s, marked `source: llm`.
+- Each maker's public `/health` answers, its Arkiv profile holds its public address, and a malformed job was refused with HTTP 400.
+- `/api/desk` returns 403 to the public, and a forged `Host` header doesn't reach it. Ports 3000 and 8801 aren't reachable from outside.
+- Over SSH, the desk stopped Eth, it stayed stopped, and Go live brought it back with its public address.
+- `/board`, `/makers` and the wallet rendered all 4 makers in headless Chrome.
