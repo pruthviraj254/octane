@@ -1,3 +1,4 @@
+import { redactAccessKey } from "@octane/sdk";
 import { isAddress, isAddressEqual, verifyMessage, type Address, type Hex } from "viem";
 import {
   NAME,
@@ -17,6 +18,7 @@ import {
   type MarketName,
 } from "@/lib/desk";
 import { linkMessage } from "@/lib/owner";
+import { serverSetting } from "@/lib/server-settings";
 
 const MIN_FEE = 65_000;
 const MAX_FEE = 500_000;
@@ -25,8 +27,12 @@ const MARKETS: MarketName[] = ["whitechain", "ef-devnet"];
 
 const isLocalName = (name: string | undefined) => name === "localhost" || name === "127.0.0.1";
 
-/** This can start your maker, so it only answers your own machine and your own pages. */
+/**
+ * This can start your maker, so it only answers your own machine and your own pages.
+ * DESK_PUBLIC=true opens it to everyone, for a live demo only.
+ */
 function fromThisMachine(request: Request): boolean {
+  if (serverSetting("DESK_PUBLIC") === "true") return true;
   const host = request.headers.get("host")?.split(":")[0];
   if (!isLocalName(host)) return false;
   const origin = request.headers.get("origin");
@@ -152,7 +158,8 @@ export async function POST(request: Request) {
       return Response.json({ stopped: true });
     }
   } catch (error) {
-    return refuse(error instanceof Error ? error.message.slice(0, 300) : "That didn't work.", 500);
+    // RPC errors repeat the URL, and the access key is part of it.
+    return refuse(error instanceof Error ? redactAccessKey(error.message).slice(0, 300) : "That didn't work.", 500);
   }
   return refuse("Unknown action.");
 }

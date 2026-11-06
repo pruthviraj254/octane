@@ -8,7 +8,7 @@ Octane runs on one AWS EC2 server at <https://octane.rishabhprajapati.me>.
 | Website | `octane-web`, on port 3000 |
 | Makers | `octane-maker@<name>`, on ports 8801 to 8808 |
 | Indexer | `octane-indexer` |
-| HTTPS | Caddy, which also blocks `/api/desk` for the public |
+| HTTPS | Caddy |
 
 Only ports 80 and 443 are open to everyone. SSH opens to known addresses only. A phone hotspot can send SSH from a different address than the one websites report, so SSH may stay blocked there even after adding that address. Use a fixed network, or allow the carrier's range in the `octane-web` security group.
 
@@ -22,7 +22,15 @@ ssh -i ~/.ssh/octane-deploy.pem ubuntu@13.232.70.181
 
 ## Use the maker desk
 
-The desk can start and stop makers, so the public can't reach it. Open a private link, then visit <http://127.0.0.1:3000/makers/desk>:
+**The desk is open to everyone while `DESK_PUBLIC=true` is in `deploy/hosted.env`.** That's for the live demo. Until it's closed, anyone can stop or restart any maker, change its rate, spend the test funds it borrows, or link their own wallet to a desk with no owner and withdraw that maker's earnings.
+
+To close it after the demo, delete that line on the server and restart the website:
+
+```bash
+ssh -i ~/.ssh/octane-deploy.pem ubuntu@13.232.70.181 "sed -i '/^DESK_PUBLIC=/d' ~/octane/deploy/hosted.env && sudo systemctl restart octane-web"
+```
+
+Once it's closed, the owner reaches the desk over a private link, at <http://127.0.0.1:3000/makers/desk>:
 
 ```bash
 ssh -i ~/.ssh/octane-deploy.pem -L 3000:127.0.0.1:3000 ubuntu@13.232.70.181

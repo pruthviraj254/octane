@@ -1,12 +1,8 @@
 octane.rishabhprajapati.me {
 	encode gzip
 
-	# The desk starts and stops makers, so it never answers the public. Its owner reaches it
-	# over SSH instead, which goes straight to the app and skips this file.
-	handle /api/desk* {
-		respond `{"error":"The desk only runs on your own machine."}` 403
-	}
-
+	# The desk route refuses the public unless DESK_PUBLIC=true. This site only matches its own
+	# hostname, so a forged Host header can't pass as local.
 	handle_path /m/cautious/* {
 		reverse_proxy 127.0.0.1:8801
 	}
