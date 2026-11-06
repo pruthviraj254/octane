@@ -25,8 +25,8 @@ Whitechain requires 2 to 4 minutes showing every party, with zero crypto steps v
 10. **Failure**: kill a maker (`pkill -9 -f "src/index.ts balancer"`) and watch its quote leave the board within 30s.
 11. **Reputation**: `pnpm recompute-fade --maker 0x…` matching the board.
 12. **A person becoming a maker** (`/makers/desk`): Become a maker, borrow funds, set your own rate, Go live. Change the rate, extend the time, and show the yellow note explaining how agents price.
+13. **Forcing a price over an agent**: Turn on AI agent and show its working. Press Override AI price, then show the agent still calculating beside your price. Press Back to AI price.
 14. **No gas token in the wallet**: the Your funds panel shows WBT 0 and ETH 0. Open **Check on the explorer** for outside proof.
 15. **The data** (`/arkiv`): live counts for every entity, with the query behind each.
-13. **Forcing a price over an agent**: Turn on AI agent and show its working. Press Override AI price, then show the agent still calculating beside your price. Press Back to AI price.
 
 **Wording:** say "no gas token needed; one fee in stablecoins". Never "gas-free" or "no gas".
