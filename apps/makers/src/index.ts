@@ -80,6 +80,8 @@ if (!config) throw new Error(`usage: maker <${Object.keys(MAKERS).join("|")}|a n
 const account = privateKeyToAccount(hexSetting(`${config.envPrefix}_PRIVATE_KEY`));
 const relay = hexSetting("OCTANE_RELAY");
 const endpoint = setting(`${config.envPrefix}_ENDPOINT`);
+// A hosted maker listens on `endpoint`, and payers reach it through this public address.
+const publicEndpoint = optionalSetting(`${config.envPrefix}_PUBLIC_ENDPOINT`) || endpoint;
 const accessKey = setting("ARKIV_ACCESS_KEY");
 const journal = new Journal(config.id);
 const control = new ControlFile(config.id);
@@ -141,7 +143,7 @@ async function currentMarket(): Promise<Market> {
 }
 
 async function publishProfile(): Promise<void> {
-  const values = { maker: addr(account.address), style: str(config!.id), endpoint: str(endpoint) };
+  const values = { maker: addr(account.address), style: str(config!.id), endpoint: str(publicEndpoint) };
   const expiration = ExpirationTime.fromDays(7);
   const existing = await fetchMakerProfile(reader, account.address);
   const result = existing
@@ -150,7 +152,7 @@ async function publishProfile(): Promise<void> {
         extensions: [{ entityKey: existing.key, expiration }],
       })
     : await writer.submit({ creates: [{ schema: MakerEntity, values, expiration }] });
-  journal.write("profile", { endpoint, result: result.status });
+  journal.write("profile", { endpoint: publicEndpoint, result: result.status });
 }
 
 let regime: Regime = {
@@ -390,7 +392,7 @@ process.on("SIGINT", () => void shutdown());
 process.on("SIGTERM", () => void shutdown());
 process.on("SIGUSR2", () => restart("asked to"));
 
-journal.write("started", { address: account.address, endpoint, spread: config.spread });
+journal.write("started", { address: account.address, endpoint: publicEndpoint, spread: config.spread });
 watchClone();
 
 // Auctions: bid a little under the board price, because a batch is guaranteed work.
@@ -437,7 +439,7 @@ async function bidOnAuctions(): Promise<void> {
 const publisher = new JournalPublisher(
   account.address,
   config.id,
-  endpoint,
+  publicEndpoint,
   journal,
   reader,
   writer,
