@@ -37,6 +37,15 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 
 **Soak test, 30 minutes:** all three makers live for about 97.7% of the time. At least one was live for about 98.8%. The worst gap was 22s, during an Arkiv RPC outage.
 
+**Redesigned wallet, Nov 6, driven in headless Chrome at 390px:**
+| Check | Result |
+|---|---|
+| [Payer pays the fee](https://explorer.testnet.whitechain.io/tx/0xc2bb507b781b71910efc35375737f6283eb4463793bae5ee75a45bca7c098d00), 0.02 USDT | Fee 0.066376 USDT to Maker Aggressive |
+| [Merchant covers the fee](https://explorer.testnet.whitechain.io/tx/0xd94a6b707a2bba67e82f63cc40cea3be008141d16826e7c319a6332295bd9021), 0.20 USDT | Payer pays 0.20, merchant nets 0.133624 |
+| Payer change across both | −0.286376 USDT, WBT 0, nonce 0 |
+| Merchant change across both | +0.153624 USDT |
+| Maker Aggressive change across both | +0.132752 USDT |
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x4001574dfa5d5457a0bcd0bdd533af602e8a42c4f9c264d86bffb04a34435605), mined with status success, 327,023 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.
