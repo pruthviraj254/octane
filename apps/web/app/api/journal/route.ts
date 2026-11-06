@@ -2,26 +2,39 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MAKERS = ["cautious", "aggressive", "balancer"];
-const LINES = 40;
+const RECENT_LINES = 3_000;
 
-/** The makers' local journals, for the relayer view. Swarm publishes the same lines. */
+type Line = Record<string, unknown>;
+
+/** A summary of each maker's local journal, for the relayer view. Swarm publishes the same lines. */
 export function GET() {
   const dir = join(process.cwd(), "..", "makers", "data");
-  const journals = MAKERS.map((maker) => {
+  const makers = MAKERS.map((maker) => {
     const file = join(dir, `${maker}.jsonl`);
-    if (!existsSync(file)) return { maker, lines: [] };
-    const lines = readFileSync(file, "utf8")
-      .trim()
-      .split("\n")
-      .slice(-LINES)
-      .flatMap((line) => {
-        try {
-          return [JSON.parse(line) as Record<string, unknown>];
-        } catch {
-          return [];
-        }
-      });
-    return { maker, lines };
+    const lines: Line[] = existsSync(file)
+      ? readFileSync(file, "utf8")
+          .trim()
+          .split("\n")
+          .slice(-RECENT_LINES)
+          .flatMap((line) => {
+            try {
+              return [JSON.parse(line) as Line];
+            } catch {
+              return [];
+            }
+          })
+      : [];
+    const latest = (event: string) => lines.filter((line) => line.event === event).at(-1);
+    return {
+      maker,
+      started: latest("started"),
+      quoted: latest("quoted"),
+      regime: latest("regime"),
+      published: latest("published"),
+      stopped: latest("stopped"),
+      jobs: lines.filter((line) => line.event === "relayed").slice(-3).reverse(),
+      relayed: lines.filter((line) => line.event === "relayed").length,
+    };
   });
-  return Response.json({ journals }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ makers }, { headers: { "cache-control": "no-store" } });
 }

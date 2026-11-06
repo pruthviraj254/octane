@@ -2,62 +2,48 @@
 
 import { getQuotes, resolveIdentity, type BoardQuote, type Chain } from "@octane/sdk";
 import { useEffect, useState } from "react";
-import { formatUnits } from "viem";
+import { Badge, Empty, List, LiveDot, PageHeader, Skeleton, Stat } from "@/components/ui";
+import { capitalise, money } from "@/lib/format";
 import { getMarket } from "@/lib/market";
 
 const POLL_MS = 2_000;
 const BLOCK_SECONDS = 2n;
+const LIFETIME_SECONDS = 30;
 
 interface Row extends BoardQuote {
   label: string;
 }
 
-type Status = "loading" | "live" | "offline";
+interface Snapshot {
+  rows: Row[];
+  block: bigint;
+  status: "loading" | "live" | "offline";
+}
 
 const MARKETS: { chain: Chain; title: string; symbol: string }[] = [
   { chain: "whitechain", title: "Whitechain Sepolia", symbol: "USDT" },
   { chain: "ef-devnet", title: "EF alt-mempool devnet", symbol: "USDC" },
 ];
 
-export function Board() {
-  return (
-    <section>
-      <h1 className="text-3xl font-semibold tracking-tight">Live gas market</h1>
-      <p className="mt-1 text-sm text-zinc-400">Read straight from Arkiv. A maker that stops refreshing leaves within 30s.</p>
-      {MARKETS.map((market) => (
-        <Market key={market.chain} {...market} />
-      ))}
-    </section>
-  );
-}
-
-function Market({ chain, title, symbol }: { chain: Chain; title: string; symbol: string }) {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [block, setBlock] = useState(0n);
-  const [status, setStatus] = useState<Status>("loading");
+/** Asks again every block, because expiry emits no event. One failed read changes nothing. */
+function useBoard(chain: Chain): Snapshot {
+  const [snapshot, setSnapshot] = useState<Snapshot>({ rows: [], block: 0n, status: "loading" });
 
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
-
-    // Expiry emits no event, so the board asks again every block.
     const poll = async () => {
       try {
         const board = await getQuotes(getMarket(), chain);
-        const labelled = await Promise.all(
+        const rows = await Promise.all(
           board.quotes.map(async (entry) => ({ ...entry, label: (await resolveIdentity(entry.quote.maker)).label })),
         );
-        if (stopped) return;
-        setRows(labelled);
-        setBlock(board.blockNumber);
-        setStatus("live");
+        if (!stopped) setSnapshot({ rows, block: board.blockNumber, status: "live" });
       } catch {
-        // One failed poll says little; the next block tries again.
-        if (!stopped) setStatus("offline");
+        if (!stopped) setSnapshot((previous) => ({ ...previous, status: "offline" }));
       }
       if (!stopped) timer = setTimeout(poll, POLL_MS);
     };
-
     void poll();
     return () => {
       stopped = true;
@@ -65,62 +51,85 @@ function Market({ chain, title, symbol }: { chain: Chain; title: string; symbol:
     };
   }, [chain]);
 
+  return snapshot;
+}
+
+export function Board() {
+  const whitechain = useBoard("whitechain");
+  const devnet = useBoard("ef-devnet");
+  const best = whitechain.rows[0];
+  const makers = new Set([...whitechain.rows, ...devnet.rows].map((row) => row.quote.maker)).size;
+
   return (
-    <div className="mt-8">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="font-medium text-zinc-200">
-          {title} <span className="text-sm text-zinc-500">· pay in {symbol}</span>
-        </h2>
-        <StatusPill status={status} />
+    <section className="animate-rise">
+      <PageHeader title="Live gas market" description="Read straight from Arkiv. A maker that stops refreshing leaves within 30 seconds." />
+
+      <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+        <Stat label="Makers live" value={whitechain.status === "loading" ? <Skeleton className="h-6 w-6" /> : makers} hint="Both markets" />
+        <Stat label="Best fee" value={best ? money(best.quote.fee) : "–"} hint="USDT" />
+        <Stat label="Arkiv block" value={whitechain.block > 0n ? whitechain.block.toLocaleString() : "–"} hint="Rabdi" />
       </div>
-      <div className="mt-3 space-y-3">
-        {rows.map((row, index) => (
-          <QuoteCard key={row.key} row={row} block={block} best={index === 0} symbol={symbol} />
-        ))}
-        {rows.length === 0 && (
-          <p className="rounded-2xl border border-zinc-800 p-6 text-center text-zinc-400">
-            {status === "loading" ? "Reading the board…" : "No live quotes right now."}
-          </p>
-        )}
-      </div>
-    </div>
+
+      {MARKETS.map((market, index) => (
+        <Market key={market.chain} {...market} snapshot={index === 0 ? whitechain : devnet} />
+      ))}
+    </section>
   );
 }
 
-function QuoteCard({ row, block, best, symbol }: { row: Row; block: bigint; best: boolean; symbol: string }) {
-  const remaining = block === 0n ? 0n : (row.expiresAt - block) * BLOCK_SECONDS;
-  const seconds = remaining > 0n ? Number(remaining) : 0;
+function Market({ title, symbol, snapshot }: { title: string; symbol: string; snapshot: Snapshot }) {
+  const { rows, block, status } = snapshot;
+  const quoting = status === "live" && rows.length > 0;
+  const label = status === "offline" ? "Reconnecting" : status === "loading" ? "Connecting" : quoting ? "Live" : "Not quoting";
+  return (
+    <section className="mt-8">
+      <div className="mb-2.5 flex items-center justify-between gap-4">
+        <h2 className="text-sm font-medium">{title}</h2>
+        <span className="flex items-center gap-1.5 text-xs text-ink-3">
+          <LiveDot live={quoting} />
+          {label}
+        </span>
+      </div>
+      {rows.length > 0 ? (
+        <List>
+          {rows.map((row, index) => (
+            <QuoteRow key={row.key} row={row} block={block} best={index === 0 && rows.length > 1} symbol={symbol} />
+          ))}
+        </List>
+      ) : status === "loading" ? (
+        <Skeleton className="block h-16 w-full rounded-xl" />
+      ) : (
+        <Empty>No live quotes right now.</Empty>
+      )}
+    </section>
+  );
+}
+
+function QuoteRow({ row, block, best, symbol }: { row: Row; block: bigint; best: boolean; symbol: string }) {
+  const remaining = block === 0n ? 0 : Number((row.expiresAt - block) * BLOCK_SECONDS);
+  const seconds = Math.max(0, remaining);
+  const share = Math.min(100, (seconds / LIFETIME_SECONDS) * 100);
 
   return (
-    <article
-      className={`flex items-center justify-between gap-4 rounded-2xl border p-5 ${
-        best ? "border-orange-500/70 bg-orange-500/5" : "border-zinc-800"
-      }`}
-    >
+    <article className="relative flex items-center justify-between gap-4 px-4 py-3.5">
       <div className="min-w-0">
-        <p className="flex items-center gap-2 font-medium capitalize">
-          {row.style}
-          {best && <span className="rounded-full bg-orange-500 px-2 py-0.5 text-xs font-semibold text-black normal-case">Best</span>}
+        <p className="flex items-center gap-2 text-sm font-medium">
+          {capitalise(row.style)}
+          {best && <Badge tone="accent">Best</Badge>}
         </p>
-        <p className="truncate font-mono text-sm text-zinc-400">{row.label}</p>
+        <p className="mt-0.5 truncate font-mono text-xs text-ink-3">{row.label}</p>
       </div>
       <div className="text-right">
-        <p className="text-xl font-semibold tabular-nums">
-          {formatUnits(row.quote.fee, 6)} {symbol}
+        <p className="text-[15px] font-medium tabular-nums tracking-tight">
+          {money(row.quote.fee)} <span className="text-xs font-normal text-ink-3">{symbol}</span>
         </p>
-        <p className="text-sm tabular-nums text-zinc-400">refreshes or leaves in {seconds}s</p>
+        <p className="mt-0.5 text-xs tabular-nums text-ink-3">{seconds}s left</p>
       </div>
+      <span
+        aria-hidden
+        className={`absolute bottom-0 left-0 h-px transition-[width] duration-700 ease-linear ${best ? "bg-accent" : "bg-line-strong"}`}
+        style={{ width: `${share}%` }}
+      />
     </article>
-  );
-}
-
-function StatusPill({ status }: { status: Status }) {
-  const text = { loading: "Connecting", live: "Live", offline: "Reconnecting" }[status];
-  const dot = status === "live" ? "bg-emerald-400" : "bg-amber-400";
-  return (
-    <span className="flex items-center gap-2 whitespace-nowrap rounded-full border border-zinc-800 px-3 py-1 text-sm text-zinc-300">
-      <span className={`h-2 w-2 rounded-full ${dot}`} />
-      {text}
-    </span>
   );
 }

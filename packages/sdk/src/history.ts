@@ -1,6 +1,6 @@
 import { desc, eq } from "@arkiv-network/sdk/query";
 import { addr } from "@arkiv-network/sdk/schema";
-import type { Address, Hash, Hex } from "viem";
+import { hexToString, isAddress, type Address, type Hash, type Hex } from "viem";
 import type { ArkivReader } from "./arkiv/client.ts";
 import { FillEntity, MakerStatsEntity } from "./arkiv/schema.ts";
 
@@ -15,6 +15,8 @@ export interface Fill {
   quoteHash: Hash;
   ts: bigint;
   fee: bigint;
+  /** Who the fee came out of. Path A fills don't record it: there, the sender always pays. */
+  feePayer?: Address;
 }
 
 export interface FillPage {
@@ -22,6 +24,16 @@ export interface FillPage {
   /** Pass this back for the next page. Undefined on the last page. */
   nextCursor: number | undefined;
   total: bigint;
+}
+
+/** The indexer writes the receipt as JSON. An unreadable one only loses this detail. */
+function feePayerOf(receipt: Hex): { feePayer?: Address } {
+  try {
+    const { feePayer } = JSON.parse(hexToString(receipt)) as { feePayer?: unknown };
+    return typeof feePayer === "string" && isAddress(feePayer) ? { feePayer } : {};
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -56,6 +68,7 @@ export async function fetchFills(
     quoteHash: row.quoteHash.value as Hash,
     ts: row.ts.value,
     fee: row.fee.value,
+    ...feePayerOf(row.receipt.value),
   }));
   const seen = offset + page.entities.length + page.skipped;
   return { fills, nextCursor: BigInt(seen) < page.count ? seen : undefined, total: page.count };

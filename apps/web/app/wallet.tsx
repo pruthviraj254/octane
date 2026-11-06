@@ -15,12 +15,12 @@ import {
   type MerchantOptIn,
   type PaymentResult,
 } from "@octane/sdk";
+import { ArrowUp, Check, ChevronRight, Copy, LoaderCircle, TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   createPublicClient,
   erc20Abi,
-  formatUnits,
   http,
   isAddressEqual,
   parseGwei,
@@ -29,6 +29,8 @@ import {
   type Hex,
 } from "viem";
 import type { PrivateKeyAccount } from "viem/accounts";
+import { Badge, Button, Card, Detail, External, Skeleton } from "@/components/ui";
+import { capitalise, money } from "@/lib/format";
 import { INDEXER, MERCHANT, getMarket, whitechain } from "@/lib/market";
 import { loadWallet } from "@/lib/wallet";
 
@@ -69,7 +71,7 @@ type Step =
   | { kind: "paid"; plan: Plan; result: PaymentResult }
   | { kind: "error"; message: string };
 
-const money = (value: bigint) => formatUnits(value, DECIMALS);
+const EXAMPLES = ["Pay Rahul 1 USDT", "Rahul ko 1 USDT bhejo"];
 
 export function Wallet() {
   const [wallet, setWallet] = useState<{ key: Hex; account: PrivateKeyAccount } | undefined>();
@@ -228,65 +230,147 @@ export function Wallet() {
   const busy = step.kind === "thinking" || step.kind === "paying";
 
   return (
-    <section>
-      <div className="rounded-2xl border border-zinc-800 p-6">
-        <p className="text-sm text-zinc-400">Your balance</p>
-        <p className="mt-1 text-4xl font-semibold tabular-nums" data-testid="usdt-balance">
-          {balances ? money(balances.usdt) : "…"} <span className="text-xl text-zinc-400">USDT</span>
-        </p>
-        {balances && balances.usdc > 0n && (
-          <p className="mt-1 text-lg tabular-nums text-zinc-300">{money(balances.usdc)} USDC</p>
-        )}
-        <p className="mt-3 text-sm text-zinc-500" data-testid="gas-proof">
-          No gas token needed. Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "…"} · Transactions you've sent:{" "}
-          {balances ? balances.transactionsSent : "…"}
-        </p>
-      </div>
+    <section className="animate-rise">
+      <p className="text-sm text-ink-3">Balance</p>
+      <p className="mt-2 text-[44px] font-semibold leading-none tracking-tight tabular-nums sm:text-5xl" data-testid="usdt-balance">
+        {balances ? <Balance value={balances.usdt} /> : <Skeleton className="h-10 w-40 align-bottom" />}{" "}
+        <span className="text-lg font-medium tracking-normal text-ink-3">USDT</span>
+      </p>
+      {balances && balances.usdc > 0n && (
+        <p className="mt-2 text-sm tabular-nums text-ink-2">{money(balances.usdc)} USDC</p>
+      )}
+      <p className="mt-3 text-[13px] text-ink-3" data-testid="gas-proof">
+        No gas token needed. Gas tokens held: {balances ? (balances.wbt + balances.eth).toString() : "–"} · Transactions you've sent:{" "}
+        {balances ? balances.transactionsSent : "–"}
+      </p>
 
-      <form onSubmit={prepare} className="mt-6">
-        <label htmlFor="request" className="text-sm text-zinc-400">
-          What would you like to do?
+      <form onSubmit={prepare} className="mt-8">
+        <label htmlFor="request" className="sr-only">
+          Who do you want to pay?
         </label>
-        <div className="mt-2 flex gap-2">
+        <div className="flex items-center gap-2 rounded-xl border border-line-strong bg-surface p-1.5 pl-4 transition-colors focus-within:border-ink-2">
           <input
             id="request"
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder="Pay Rahul 10 USDT"
             autoComplete="off"
-            className="min-w-0 flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 outline-none focus:border-orange-500"
+            className="h-9 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-3"
           />
           <button
             type="submit"
+            aria-label="Continue"
             disabled={busy || !text.trim()}
-            className="rounded-xl bg-orange-500 px-5 py-3 font-medium text-black disabled:opacity-40"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink text-canvas transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
           >
-            Continue
+            <ArrowUp size={18} aria-hidden />
           </button>
         </div>
       </form>
 
-      <div className="mt-6" aria-live="polite">
-        {step.kind === "thinking" && <p className="text-zinc-400">Finding the best price…</p>}
-        {step.kind === "error" && <p className="text-amber-400">{step.message}</p>}
+      {step.kind === "idle" && !text && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {EXAMPLES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => setText(example)}
+              className="rounded-lg border border-line px-3 py-1.5 text-[13px] text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4" aria-live="polite">
+        {step.kind === "thinking" && <Progress title="Finding the best price" />}
+        {step.kind === "error" && (
+          <div data-testid="error" className="flex animate-rise gap-2.5 rounded-xl bg-caution-soft px-4 py-3 text-sm leading-relaxed text-caution">
+            <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
+            <p className="min-w-0">{step.message}</p>
+          </div>
+        )}
         {step.kind === "confirm" && <Confirm plan={step.plan} onPay={pay} onCancel={() => setStep({ kind: "idle" })} />}
-        {step.kind === "paying" && <p className="text-zinc-400">Paying {step.plan.name}…</p>}
+        {step.kind === "paying" && (
+          <Progress
+            title={`Paying ${step.plan.name} ${money(step.plan.amount)} ${step.plan.symbol}`}
+            detail="A maker is paying the gas and settling this onchain."
+          />
+        )}
         {step.kind === "paid" && <Receipt plan={step.plan} result={step.result} />}
       </div>
 
-      {address && (
-        <Link href={`/history?payer=${address}`} className="mt-10 block text-sm text-orange-400 underline">
-          Your gas spend
-        </Link>
-      )}
-
-      <details className="mt-4 text-sm text-zinc-500">
-        <summary className="cursor-pointer">Receive money</summary>
-        <p className="mt-2 break-all font-mono" data-testid="address">
-          {address ?? "…"}
-        </p>
-      </details>
+      <div className="mt-10 divide-y divide-line border-y border-line">
+        {address && (
+          <Link
+            href={`/history?payer=${address}`}
+            className="flex items-center justify-between gap-4 py-3.5 text-sm text-ink-2 transition-colors hover:text-ink"
+          >
+            Your gas spend
+            <ChevronRight size={16} className="text-ink-3" aria-hidden />
+          </Link>
+        )}
+        <div className="flex items-center justify-between gap-4 py-3.5">
+          <div className="min-w-0">
+            <p className="text-sm text-ink-2">Your address</p>
+            <p className="mt-1 break-all font-mono text-xs text-ink-3" data-testid="address">
+              {address ?? "–"}
+            </p>
+          </div>
+          {address && <CopyButton value={address} />}
+        </div>
+      </div>
     </section>
+  );
+}
+
+/** Cents stand out and the digits past them recede, with nothing rounded away. */
+function Balance({ value }: { value: bigint }) {
+  const text = money(value);
+  const cents = text.indexOf(".") + 3;
+  return (
+    <>
+      {text.slice(0, cents)}
+      <span className="text-ink-3">{text.slice(cents)}</span>
+    </>
+  );
+}
+
+function Progress({ title, detail }: { title: string; detail?: string }) {
+  return (
+    <Card className="flex animate-rise items-start gap-3 px-4 py-3.5">
+      <LoaderCircle size={16} className="mt-0.5 shrink-0 animate-spin text-ink-3" aria-hidden />
+      <div className="min-w-0">
+        <p className="text-sm tabular-nums">{title}</p>
+        {detail && <p className="mt-0.5 text-[13px] text-ink-3">{detail}</p>}
+      </div>
+    </Card>
+  );
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1_500);
+    } catch {
+      // Clipboard access can be blocked. The address stays selectable.
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={copied ? "Copied" : "Copy address"}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line text-ink-2 transition-colors hover:border-line-strong hover:text-ink"
+    >
+      {copied ? <Check size={16} className="text-positive" aria-hidden /> : <Copy size={16} aria-hidden />}
+    </button>
   );
 }
 
@@ -302,68 +386,94 @@ function Confirm({
   const [merchantPays, setMerchantPays] = useState(false);
   const fee = plan.best.quote.fee;
   const canMerchantPay = plan.merchant && fee < plan.amount;
-  const reason = useMemo(() => {
-    const total = plan.others + 1;
-    return plan.others > 0 ? `${plan.best.style} is the cheapest of ${total} makers quoting now.` : `${plan.best.style} is quoting now.`;
-  }, [plan]);
+  const total = merchantPays ? plan.amount : plan.amount + fee;
+  const style = capitalise(plan.best.style);
 
   return (
-    <div className="rounded-2xl border border-orange-500/70 bg-orange-500/5 p-6">
-      <p className="text-lg font-medium">
-        Pay {plan.name} {money(plan.amount)} {plan.symbol}
+    <Card className="animate-rise p-4 sm:p-5">
+      <p className="text-sm text-ink-3">Review payment</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
+        {money(plan.amount)} {plan.symbol}
       </p>
-      {merchantPays ? (
-        <p className="mt-1 text-zinc-300">
-          {plan.name} covers the {money(fee)} {plan.symbol} fee. You pay {money(plan.amount)} {plan.symbol}.
-        </p>
-      ) : (
-        <p className="mt-1 text-zinc-300">
-          Fee {money(fee)} {plan.symbol}. Total {money(plan.amount + fee)} {plan.symbol}.
-        </p>
-      )}
-      <p className="mt-1 text-sm text-zinc-400 first-letter:uppercase">{reason}</p>
+      <p className="mt-0.5 text-sm text-ink-2">to {plan.name}</p>
+
+      <dl className="mt-3 divide-y divide-line border-t border-line">
+        <Detail label="Fee">
+          {merchantPays ? (
+            <span className="text-ink-3">
+              <s>{money(fee)}</s> {plan.name} covers it
+            </span>
+          ) : (
+            `${money(fee)} ${plan.symbol}`
+          )}
+        </Detail>
+        <Detail label="You pay">
+          <span className="font-medium">
+            {money(total)} {plan.symbol}
+          </span>
+        </Detail>
+        <Detail label="Maker">
+          <span className="inline-flex items-center gap-2">
+            {plan.others > 0 && <Badge tone="accent">Cheapest of {plan.others + 1}</Badge>}
+            {style}
+          </span>
+        </Detail>
+      </dl>
+
       {plan.skipped.length > 0 && (
-        <p className="mt-1 text-sm text-amber-400">
-          Passed over {plan.skipped.map((entry) => entry.style).join(" and ")}: too many failed deliveries.
+        <p className="mt-1 text-[13px] leading-relaxed text-caution">
+          Passed over {plan.skipped.map((entry) => capitalise(entry.style)).join(" and ")}: too many failed deliveries.
         </p>
       )}
+
       {canMerchantPay && (
-        <label className="mt-3 flex items-center gap-2 text-sm text-zinc-300">
+        <label className="mt-2 flex cursor-pointer items-center justify-between gap-4 rounded-lg bg-raised px-3 py-2.5 text-sm text-ink-2">
+          {plan.name} offers to cover the fee
           <input
             type="checkbox"
             data-testid="merchant-pays"
             checked={merchantPays}
             onChange={(event) => setMerchantPays(event.target.checked)}
-            className="accent-orange-500"
+            className="peer sr-only"
           />
-          {plan.name} offers to cover the fee
+          <span
+            aria-hidden
+            className="relative h-5 w-9 shrink-0 rounded-full bg-line-strong transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-ink after:transition-transform peer-checked:bg-accent peer-checked:after:translate-x-4 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent"
+          />
         </label>
       )}
-      <div className="mt-4 flex gap-2">
-        <button onClick={() => onPay(plan, merchantPays)} className="rounded-xl bg-orange-500 px-5 py-2 font-medium text-black">
-          Confirm
-        </button>
-        <button onClick={onCancel} className="rounded-xl border border-zinc-700 px-5 py-2 text-zinc-300">
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button variant="secondary" onClick={onCancel}>
           Cancel
-        </button>
+        </Button>
+        <Button onClick={() => onPay(plan, merchantPays)}>Confirm</Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function Receipt({ plan, result }: { plan: Plan; result: PaymentResult }) {
+  const merchantCovered = result.feePaidBy === "merchant";
   return (
-    <div className="rounded-2xl border border-emerald-500/50 bg-emerald-500/5 p-6">
-      <p className="text-lg font-medium">
-        Paid {plan.name} {money(plan.amount)} {plan.symbol}
-      </p>
-      <p className="mt-1 text-sm text-zinc-400">
-        {result.feePaidBy === "merchant" ? `${plan.name} covered the` : "Fee"} {money(result.fee)} {plan.symbol}{" "}
-        {result.feePaidBy === "merchant" ? "fee, paid" : ""} to {result.makerStyle}.
-      </p>
-      <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-orange-400 underline">
-        View receipt
-      </a>
-    </div>
+    <Card className="animate-rise p-4 sm:p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-positive-soft text-positive">
+          <Check size={14} strokeWidth={2.5} aria-hidden />
+        </span>
+        <p className="text-[15px] font-medium tabular-nums">
+          Paid {plan.name} {money(plan.amount)} {plan.symbol}
+        </p>
+      </div>
+      <dl className="mt-3 divide-y divide-line border-t border-line">
+        <Detail label={merchantCovered ? `Fee, covered by ${plan.name}` : "Fee"}>
+          {money(result.fee)} {plan.symbol}
+        </Detail>
+        <Detail label="Settled by">{capitalise(result.makerStyle)}</Detail>
+      </dl>
+      <div className="mt-2">
+        <External href={result.explorerUrl}>View receipt</External>
+      </div>
+    </Card>
   );
 }
