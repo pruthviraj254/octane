@@ -8,7 +8,7 @@ import {
   ARKIV_CHAIN_ID,
   whitechainSepolia,
 } from "@octane/sdk";
-import { createPublicClient, hexToString, http, type Address, type Hash } from "viem";
+import { createPublicClient, hexToString, http, isAddress, type Address, type Hash } from "viem";
 import { env, envHex, run } from "./lib/env.ts";
 
 /**
@@ -27,7 +27,7 @@ function pick<T>(items: readonly T[], count: number): T[] {
 await run(async () => {
   const flag = process.argv.indexOf("--maker");
   const maker = (flag >= 0 ? process.argv[flag + 1] : undefined) as Address | undefined;
-  if (!maker) throw new Error("usage: recompute-fade --maker 0x...");
+  if (!maker || !isAddress(maker)) throw new Error("usage: recompute-fade --maker 0x...");
 
   const reader = arkivReader(env("ARKIV_ACCESS_KEY"));
   const stats = await fetchMakerStats(reader, { indexer: envHex("INDEXER_ADDRESS"), maker });
