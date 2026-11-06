@@ -11,7 +11,7 @@ import { EASE } from "@/components/providers";
 import { Ticker } from "@/components/ticker";
 import { Badge, Button, Card, Empty, External, LiveDot, PageHeader, SectionTitle, Skeleton } from "@/components/ui";
 import { capitalise, money, shortAddress } from "@/lib/format";
-import type { DeskInfo } from "@/lib/desk";
+import type { DeskInfo, MarketName } from "@/lib/desk";
 import { useWalletSession } from "@/lib/wallet-session";
 
 const POLL_MS = 4_000;
@@ -20,7 +20,7 @@ const MIN_TGLM = 0.01;
 const MIN_RATE = 0.065;
 const MAX_RATE = 0.5;
 const SEND_WBT = parseEther("0.02");
-const RATE_HINT = "Between 0.065 and 0.50 USDT. Below 0.065 a payment costs you more in gas than it earns.";
+const RATE_HINT = "Between 0.065 and 0.50. Below 0.065 a payment can cost you more in gas than it earns.";
 const LIMITS = [
   { label: "5 min", seconds: 300 },
   { label: "30 min", seconds: 1_800 },
@@ -103,7 +103,7 @@ function toBase(rate: string): bigint | undefined {
 function rateProblem(rate: string): string | undefined {
   const value = Number(rate);
   if (!rate.trim() || Number.isNaN(value)) return "Enter a rate.";
-  if (value < MIN_RATE || value > MAX_RATE) return `A rate must be between ${MIN_RATE} and ${MAX_RATE.toFixed(2)} USDT.`;
+  if (value < MIN_RATE || value > MAX_RATE) return `A rate must be between ${MIN_RATE} and ${MAX_RATE.toFixed(2)}.`;
   return undefined;
 }
 
@@ -158,10 +158,46 @@ export function DeskPage() {
   );
 }
 
-function ModeChoice({ manual, aiReady, onChange }: { manual: boolean; aiReady: boolean; onChange: (manual: boolean) => void }) {
+type Where = MarketName | "both";
+
+const WHERE: { key: Where; label: string; needs: string; carries: string }[] = [
+  { key: "whitechain", label: "Whitechain", needs: "Spare WBT", carries: "Carries USDT payments" },
+  { key: "ef-devnet", label: "EF devnet", needs: "Spare ETH", carries: "Your staked paymaster carries USDC payments" },
+  { key: "both", label: "Both", needs: "Spare WBT and ETH", carries: "Carries USDT and USDC payments" },
+];
+
+function MarketChoice({ where, onChange }: { where: Where; onChange: (where: Where) => void }) {
+  return (
+    <div>
+      <p className="text-[13px] text-ink-3">Where do you want to be a maker?</p>
+      <div role="radiogroup" aria-label="Where to be a maker" className="mt-1.5 grid gap-2 sm:grid-cols-3">
+        {WHERE.map((option) => {
+          const active = option.key === where;
+          return (
+            <button
+              key={option.key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              data-testid={`market-${option.key}`}
+              onClick={() => onChange(option.key)}
+              className={`rounded-xl border p-3 text-left transition-colors ${active ? "border-accent/60 bg-accent-soft" : "border-line hover:border-line-strong"}`}
+            >
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="mt-0.5 block text-xs text-ink-2">{option.needs}</span>
+              <span className="block text-xs text-ink-3">{option.carries}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ModeChoice({ manual, aiReady, aiOff, onChange }: { manual: boolean; aiReady: boolean; aiOff?: string; onChange: (manual: boolean) => void }) {
   const options = [
     { key: true, label: "I'll set the price", hint: "It never moves by itself", icon: Hand, off: false },
-    { key: false, label: "AI agent", hint: aiReady ? "Reprices with the formula" : "No AI set up on this machine", icon: Bot, off: !aiReady },
+    { key: false, label: "AI agent", hint: aiOff ?? (aiReady ? "Reprices with the formula" : "No AI set up on this machine"), icon: Bot, off: !aiReady || aiOff !== undefined },
   ];
   return (
     <div role="radiogroup" aria-label="Who sets the price" className="grid grid-cols-2 gap-2">
@@ -205,11 +241,16 @@ const INPUT =
 function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [manual, setManual] = useState(true);
+  const [where, setWhere] = useState<Where>("whitechain");
+  const [chosenManual, setManual] = useState(true);
   const [rate, setRate] = useState("0.07");
   const [margin, setMargin] = useState("0.01");
   const [busy, setBusy] = useState(false);
+  // The agent prices from Whitechain's pool. The EF devnet has no market to read.
+  const efOnly = where === "ef-devnet";
+  const manual = chosenManual || efOnly;
   const badRate = manual ? rateProblem(rate) : undefined;
+  const unit = efOnly ? "USDC" : where === "both" ? "USDT or USDC" : "USDT";
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -218,7 +259,8 @@ function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
     if (base === undefined || fee === undefined || badRate) return;
     setBusy(true);
     const pricing = manual ? { mode: "manual", fee: fee.toString() } : { mode: "auto" };
-    if (await act({ action: "create", name: name.trim(), margin: base.toString(), ...pricing })) {
+    const markets = where === "both" ? ["whitechain", "ef-devnet"] : [where];
+    if (await act({ action: "create", name: name.trim(), margin: base.toString(), markets, ...pricing })) {
       setName("");
       setOpen(false);
     }
@@ -246,9 +288,10 @@ function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
         <Field label="Maker name" htmlFor="desk-name" hint="Lowercase letters and digits. It shows on the market.">
           <input id="desk-name" value={name} onChange={(event) => setName(event.target.value.toLowerCase())} placeholder="nova" autoComplete="off" maxLength={16} className={INPUT} />
         </Field>
-        <ModeChoice manual={manual} aiReady={aiReady} onChange={setManual} />
+        <MarketChoice where={where} onChange={setWhere} />
+        <ModeChoice manual={manual} aiReady={aiReady} {...(efOnly ? { aiOff: "Needs Whitechain's market price" } : {})} onChange={setManual} />
         {manual ? (
-          <Field label="Your rate per payment, in USDT" htmlFor="desk-rate" hint={badRate ?? RATE_HINT}>
+          <Field label={`Your rate per payment, in ${unit}`} htmlFor="desk-rate" hint={badRate ?? RATE_HINT}>
             <input id="desk-rate" value={rate} onChange={(event) => setRate(event.target.value)} inputMode="decimal" className={INPUT} />
           </Field>
         ) : (
@@ -287,6 +330,9 @@ function AiPrice({ desk }: { desk: DeskInfo }) {
       </p>
       {desk.formula === String(MIN_RATE * 1e6) && <p className="mt-1 text-xs text-ink-3">Held at the 0.065 minimum.</p>}
       {desk.aiNote && <p className="mt-2 font-serif text-[17px] italic leading-snug text-ink-2">{desk.aiNote}</p>}
+      {desk.markets.includes("ef-devnet") && (
+        <p className="mt-2 text-xs text-ink-3">This is the Whitechain price. The EF devnet has no market to read, so the agent charges a fixed 0.05 USDC there.</p>
+      )}
     </div>
   );
 }
@@ -313,7 +359,11 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
 
   const wbt = Number(desk.wbt ?? 0);
   const tglm = Number(desk.tglm ?? 0);
-  const ready = wbt >= MIN_WBT && tglm >= MIN_TGLM;
+  const onWhitechain = desk.markets.includes("whitechain");
+  const onDevnet = desk.markets.includes("ef-devnet");
+  const needsPaymaster = onDevnet && !desk.paymaster;
+  const ready = (!onWhitechain || wbt >= MIN_WBT) && tglm >= MIN_TGLM && !needsPaymaster;
+  const unit = onWhitechain && onDevnet ? "USDT or USDC" : onDevnet ? "USDC" : "USDT";
   const secondsLeft = desk.control.until === undefined ? undefined : desk.control.until - now;
   const timeUp = secondsLeft !== undefined && secondsLeft <= 0;
   const badRate = rateProblem(rate);
@@ -346,12 +396,13 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
             <LiveDot live={desk.live} />
             {capitalise(desk.name)}
             <Badge tone={manualNow ? "accent" : "neutral"}>{overridden ? "AI overridden" : manualNow ? "Own rate" : "AI agent"}</Badge>
-            {desk.paymaster && <Badge>Paymaster</Badge>}
+            {onWhitechain && <Badge>Whitechain</Badge>}
+            {onDevnet && <Badge>EF paymaster</Badge>}
           </h3>
           <p className="mt-1 truncate font-mono text-xs text-ink-3">{shortAddress(desk.address)}</p>
         </div>
         <p className="figure text-2xl">
-          {desk.live && desk.fee ? <Ticker value={money(BigInt(desk.fee))} /> : "–"} <span className="font-sans text-xs font-normal tracking-normal text-ink-3">USDT</span>
+          {desk.live && desk.fee ? <Ticker value={money(BigInt(desk.fee))} /> : "–"} <span className="font-sans text-xs font-normal tracking-normal text-ink-3">{onWhitechain ? "USDT" : "USDC"}</span>
         </p>
       </div>
 
@@ -362,9 +413,18 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
           value={secondsLeft === undefined ? "None" : timeUp ? "Ended" : <span data-testid={`limit-${desk.name}`}>{clock(secondsLeft)}</span>}
           low={timeUp}
         />
-        <Readout label="Earned" value={`${Number(desk.usdt ?? 0).toFixed(3)} USDT`} />
+        <Readout
+          label="Earned"
+          value={
+            <>
+              {onWhitechain && <span className="block">{Number(desk.usdt ?? 0).toFixed(3)} USDT</span>}
+              {onDevnet && <span className="block">{Number(desk.usdc ?? 0).toFixed(3)} USDC</span>}
+            </>
+          }
+        />
         <Readout label="Carried" value={`${desk.relayed} ${desk.relayed === 1 ? "payment" : "payments"}`} />
-        <Readout label="Gas tank" value={`${wbt.toFixed(4)} WBT`} low={wbt < MIN_WBT} />
+        {onWhitechain && <Readout label="Gas tank" value={`${wbt.toFixed(4)} WBT`} low={wbt < MIN_WBT} />}
+        {onDevnet && <Readout label="Paymaster" value={desk.paymasterEth ? `${Number(desk.paymasterEth).toFixed(4)} ETH` : "Not set up"} low={needsPaymaster} />}
         <Readout label="Arkiv gas" value={`${tglm.toFixed(4)} tGLM`} low={tglm < MIN_TGLM} />
       </div>
 
@@ -379,16 +439,18 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
         <div className="mt-4 rounded-xl bg-caution-soft p-3.5">
           <p className="flex items-center gap-2 text-sm font-medium text-caution">
             <Fuel size={15} aria-hidden />
-            This desk needs gas before it can go live
+            This desk needs funds before it can go live
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-ink-2">
-            At least {MIN_WBT} WBT to pay gas, and {MIN_TGLM} tGLM to keep a quote on Arkiv. On testnet, borrow a small float from Octane's test wallets.
+            {onWhitechain && `At least ${MIN_WBT} WBT to pay gas on Whitechain. `}
+            {needsPaymaster && "ETH for your paymaster on the EF devnet: 0.1 to pay gas and 0.012 staked. "}
+            {MIN_TGLM} tGLM to keep a quote on Arkiv. On testnet, borrow it from Octane's test wallets.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="secondary" disabled={busy !== undefined} onClick={() => void run("fund", { action: "fund" })}>
-              {busy === "fund" ? "Borrowing" : "Borrow test funds"}
+              {busy === "fund" ? (needsPaymaster ? "Borrowing and staking, about a minute" : "Borrowing") : "Borrow test funds"}
             </Button>
-            {connected && wbt < MIN_WBT && (
+            {connected && onWhitechain && wbt < MIN_WBT && (
               <Button variant="secondary" disabled={busy !== undefined} onClick={() => void fundFromWallet()}>
                 {busy === "wallet" ? "Check your wallet" : "Send 0.02 WBT from my wallet"}
               </Button>
@@ -404,7 +466,31 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
       )}
 
       <div className="mt-5 space-y-4">
-        {hasAgent && <AiPrice desk={desk} />}
+        {desk.paymaster && (
+          <div>
+            <p className="text-[13px] text-ink-3">Quoting on</p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {(["whitechain", "ef-devnet"] as const).map((market) => {
+                const on = desk.markets.includes(market);
+                const next = on ? desk.markets.filter((name) => name !== market) : [...desk.markets, market];
+                return (
+                  <button
+                    key={market}
+                    type="button"
+                    aria-pressed={on}
+                    disabled={busy !== undefined || next.length === 0}
+                    onClick={() => void run("markets", { action: "control", markets: next })}
+                    className={`rounded-lg border px-2.5 py-1.5 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${on ? "border-accent/60 bg-accent-soft text-ink" : "border-line text-ink-3 hover:border-line-strong"}`}
+                  >
+                    {market === "whitechain" ? "Whitechain" : "EF devnet"}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {hasAgent && onWhitechain && <AiPrice desk={desk} />}
 
         {!hasAgent && (
           <p className="text-[13px] leading-relaxed text-ink-3">
@@ -417,7 +503,7 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
           </p>
         )}
 
-        <Field label={hasAgent && !manualNow ? "Force a price, in USDT" : "Your rate per payment, in USDT"} htmlFor={`rate-${desk.name}`} hint={badRate ?? RATE_HINT}>
+        <Field label={hasAgent && !manualNow ? `Force a price, in ${unit}` : `Your rate per payment, in ${unit}`} htmlFor={`rate-${desk.name}`} hint={badRate ?? RATE_HINT}>
           <input id={`rate-${desk.name}`} value={rate} onChange={(event) => setRate(event.target.value)} inputMode="decimal" className={INPUT} />
         </Field>
 
@@ -438,9 +524,9 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
             </Button>
           )}
           {!hasAgent && (
-            <Button variant="secondary" disabled={busy !== undefined || !aiReady} onClick={() => void run("back", { action: "control", mode: "auto" })}>
+            <Button variant="secondary" disabled={busy !== undefined || !aiReady || !onWhitechain} onClick={() => void run("back", { action: "control", mode: "auto" })}>
               <Bot size={15} aria-hidden />
-              {aiReady ? (busy === "back" ? "Switching" : "Turn on AI agent") : "No AI on this machine"}
+              {!aiReady ? "No AI on this machine" : !onWhitechain ? "AI needs Whitechain" : busy === "back" ? "Switching" : "Turn on AI agent"}
             </Button>
           )}
           {hasAgent && (
@@ -481,7 +567,7 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
         </div>
       </div>
 
-      {!desk.paymaster && (
+      {!desk.paymaster && !onDevnet && (
         <div className="mt-5 rounded-xl border border-line p-3.5">
           <p className="text-sm font-medium">Have spare ETH? Run a paymaster too</p>
           <p className="mt-1 text-[13px] leading-relaxed text-ink-3">

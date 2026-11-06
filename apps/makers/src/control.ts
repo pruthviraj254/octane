@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { MAX_FEE, MIN_FEE } from "./config.ts";
 
+export type MarketName = "whitechain" | "ef-devnet";
+
 /** What the person running a maker has asked for. The desk page writes this file. */
 export interface Control {
   /** `auto` uses the formula. `manual` holds a person's price, which never moves by itself. */
@@ -9,6 +11,8 @@ export interface Control {
   fee?: bigint;
   /** This maker has an AI agent. In manual mode that means the person is overriding it. */
   agent?: boolean;
+  /** Where it quotes. Unset means everywhere it's able to. */
+  markets?: MarketName[];
   /** Unix seconds. Past this, the maker takes its quote off the board. */
   until?: bigint;
 }
@@ -17,7 +21,7 @@ const dataDir = new URL("../data/", import.meta.url);
 
 export function parseControl(text: string): Control | undefined {
   try {
-    const raw = JSON.parse(text) as { mode?: unknown; fee?: unknown; until?: unknown; agent?: unknown };
+    const raw = JSON.parse(text) as { mode?: unknown; fee?: unknown; until?: unknown; agent?: unknown; markets?: unknown };
     if (raw.mode !== "auto" && raw.mode !== "manual") return undefined;
     const fee = raw.fee === undefined ? undefined : BigInt(String(raw.fee));
     const until = raw.until === undefined ? undefined : BigInt(String(raw.until));
@@ -27,6 +31,7 @@ export function parseControl(text: string): Control | undefined {
       ...(fee === undefined ? {} : { fee }),
       ...(until === undefined ? {} : { until }),
       ...(typeof raw.agent === "boolean" ? { agent: raw.agent } : {}),
+      ...(Array.isArray(raw.markets) ? { markets: raw.markets.filter((market): market is MarketName => market === "whitechain" || market === "ef-devnet") } : {}),
     };
   } catch {
     return undefined;
@@ -59,6 +64,10 @@ export function feeFor(control: Control, formula: bigint): bigint {
   if (control.fee < MIN_FEE) return MIN_FEE;
   if (control.fee > MAX_FEE) return MAX_FEE;
   return control.fee;
+}
+
+export function quotesOn(control: Control, market: MarketName): boolean {
+  return control.markets === undefined || control.markets.includes(market);
 }
 
 /** An overridden agent keeps thinking, so its owner can see what it would charge. */

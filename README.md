@@ -112,13 +112,13 @@ Anyone with spare gas tokens can earn fees. There's no signup and no allowlist: 
 
 The maker desk at `/makers/desk` does all of this on screen:
 
-1. **Create a desk wallet.** A maker sends a transaction for every payment it carries, so it needs a wallet that signs around the clock. The key stays in `.env` on your machine.
-2. **Fund it.** WBT pays gas, about 0.00075 WBT a payment. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour. On testnet, the desk can borrow a small float.
-3. **Choose who prices.** With no AI agent, your rate holds exactly until you change it, and no AI is called. With an agent, the formula reprices about every 10 seconds and the desk shows its working. You can force a price over the agent at any time, and it keeps calculating beside your price until you hand back. You can also set and extend a time limit. Fees stay between 0.065 and 0.50 USDT whoever sets them.
-4. **Go live.** Fees arrive as stablecoins in the same transaction as each payment.
-5. **Have spare ETH?** Set up a paymaster: your own clone on the EF devnet, staked 0.012 ETH and funded with 0.1 ETH, which sponsors USDC payments.
+1. **Choose where.** Whitechain if you hold spare WBT, the EF devnet if you hold spare ETH, or both.
+2. **Create a desk wallet.** A maker sends a transaction for every payment it carries, so it needs a wallet that signs around the clock. The key stays in `.env` on your machine.
+3. **Fund it.** On Whitechain, WBT pays gas, about 0.00075 WBT a payment. On the EF devnet, your own staked paymaster pays it: 0.1 ETH of float and 0.012 ETH staked. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour. On testnet, the desk can borrow all of this.
+4. **Choose who prices.** With no AI agent, your rate holds exactly until you change it, and no AI is called. With an agent, the formula reprices about every 10 seconds and the desk shows its working. You can force a price over the agent at any time, and it keeps calculating beside your price until you hand back. You can also set and extend a time limit. Fees stay between 0.065 and 0.50 whoever sets them. The agent prices from Whitechain's pool, so an EF-only maker sets its own rate.
+5. **Go live.** Fees arrive as stablecoins in the same transaction as each payment. You can add or leave a market later.
 
-From the command line, `pnpm new-maker nova --spread 5000 --fund --path-a` then `pnpm maker nova` does the same. To use a wallet you already hold, add `MAKER_NOVA_PRIVATE_KEY=0x…` to `.env` first.
+From the command line, `pnpm new-maker nova --spread 5000 --fund --path-a` then `pnpm maker nova` does the same, and `--ef-only` leaves out Whitechain. To use a wallet you already hold, add `MAKER_NOVA_PRIVATE_KEY=0x…` to `.env` first.
 
 What you risk is your own gas. Every job is simulated before sending, and a payer who races you can cost you at most one reverted transaction.
 

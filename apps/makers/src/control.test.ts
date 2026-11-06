@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_FEE, MIN_FEE } from "./config.ts";
-import { TickWatchdog, agentActive, feeFor, parseControl, pastLimit, signedUntil } from "./control.ts";
+import { TickWatchdog, agentActive, feeFor, parseControl, pastLimit, quotesOn, signedUntil } from "./control.ts";
 
 describe("parseControl", () => {
   it("reads a manual price and time limit", () => {
@@ -13,6 +13,21 @@ describe("parseControl", () => {
 
   it.each(["", "not json", '{"mode":"yolo"}', '{"mode":"manual"}', '{"mode":"manual","fee":"lots"}'])("refuses %s", (text) => {
     expect(parseControl(text)).toBeUndefined();
+  });
+});
+
+describe("quotesOn", () => {
+  it("quotes everywhere it can by default", () => {
+    expect([quotesOn({ mode: "auto" }, "whitechain"), quotesOn({ mode: "auto" }, "ef-devnet")]).toEqual([true, true]);
+  });
+
+  it("stays on the markets its owner chose", () => {
+    const control = parseControl('{"mode":"manual","fee":"70000","markets":["ef-devnet"]}');
+    expect(control && [quotesOn(control, "whitechain"), quotesOn(control, "ef-devnet")]).toEqual([false, true]);
+  });
+
+  it("drops a market it doesn't know", () => {
+    expect(parseControl('{"mode":"auto","markets":["whitechain","moon"]}')?.markets).toEqual(["whitechain"]);
   });
 });
 

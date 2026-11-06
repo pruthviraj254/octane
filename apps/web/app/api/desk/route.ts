@@ -1,8 +1,23 @@
-import { NAME, aiConfigured, controlOf, deskNames, listDesks, setUpMaker, startMaker, stopMaker, writeControl, type Control } from "@/lib/desk";
+import {
+  NAME,
+  aiConfigured,
+  controlOf,
+  deskNames,
+  hasPaymaster,
+  listDesks,
+  marketsOf,
+  setUpMaker,
+  startMaker,
+  stopMaker,
+  writeControl,
+  type Control,
+  type MarketName,
+} from "@/lib/desk";
 
 const MIN_FEE = 65_000;
 const MAX_FEE = 500_000;
 const MAX_ADDED_SECONDS = 86_400;
+const MARKETS: MarketName[] = ["whitechain", "ef-devnet"];
 
 const isLocalName = (name: string | undefined) => name === "localhost" || name === "127.0.0.1";
 
@@ -32,6 +47,7 @@ interface Action {
   clearLimit?: unknown;
   paymaster?: unknown;
   agent?: unknown;
+  markets?: unknown;
 }
 
 function validFee(fee: unknown): string | undefined {
@@ -44,13 +60,19 @@ function nextControl(name: string, body: Action): Control | string {
   const next: Control = { ...control };
   if (body.mode === "auto" || body.mode === "manual") next.mode = body.mode;
   if (typeof body.agent === "boolean") next.agent = body.agent;
+  if (body.markets !== undefined) {
+    const chosen = MARKETS.filter((market) => Array.isArray(body.markets) && body.markets.includes(market));
+    if (chosen.length === 0) return "Choose at least one market.";
+    next.markets = chosen;
+  }
   if (next.mode === "auto") {
     if (!aiConfigured()) return "No AI is set up on this machine, so this maker needs a rate you set yourself.";
+    if (next.markets && !next.markets.includes("whitechain")) return "The agent prices from Whitechain's market, so an EF-only maker needs a rate you set yourself.";
     next.agent = true;
   }
   if (body.fee !== undefined) {
     const fee = validFee(body.fee);
-    if (!fee) return "A rate must be between 0.065 and 0.50 USDT.";
+    if (!fee) return "A rate must be between 0.065 and 0.50.";
     next.fee = fee;
   }
   if (next.mode === "manual" && !next.fee) return "Set a rate first.";
@@ -85,11 +107,21 @@ export async function POST(request: Request) {
     if (!known) return refuse(`There's no maker called ${name} on this machine.`, 404);
 
     if (body.action === "fund") {
-      return Response.json({ output: await setUpMaker(name, ["--fund", ...(body.paymaster === true ? ["--path-a"] : [])]) });
+      const markets = marketsOf(name);
+      const addingPaymaster = body.paymaster === true && !markets.includes("ef-devnet");
+      const flags = ["--fund"];
+      if (addingPaymaster || markets.includes("ef-devnet")) flags.push("--path-a");
+      if (!addingPaymaster && !markets.includes("whitechain")) flags.push("--ef-only");
+      const output = await setUpMaker(name, flags);
+      if (addingPaymaster) writeControl(name, { ...controlOf(name), markets: [...markets, "ef-devnet"] });
+      return Response.json({ output });
     }
     if (body.action === "control" || body.action === "start") {
       const next = nextControl(name, body);
       if (typeof next === "string") return refuse(next);
+      if (body.action === "start" && next.markets?.includes("ef-devnet") && !hasPaymaster(name)) {
+        return refuse("Set up the paymaster first. It's what carries payments on the EF devnet.");
+      }
       writeControl(name, next);
       if (body.action === "start") startMaker(name);
       return Response.json({ control: next });

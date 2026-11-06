@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseEnv, promisify } from "node:util";
-import { WHITECHAIN_USDT, arkivReader, whitechainSepolia } from "@octane/sdk";
+import { EF_USDC, WHITECHAIN_USDT, arkivReader, efDevnet, whitechainSepolia } from "@octane/sdk";
 import { createPublicClient, erc20Abi, formatEther, formatUnits, http, type Address } from "viem";
 
 /**
@@ -17,12 +17,16 @@ const run = promisify(execFile);
 
 export const NAME = /^[a-z][a-z0-9]{1,15}$/;
 
+export type MarketName = "whitechain" | "ef-devnet";
+
 export interface Control {
   mode: "auto" | "manual";
   fee?: string;
   until?: number;
   /** This maker has an AI agent. In manual mode, its owner is overriding it. */
   agent?: boolean;
+  /** Where it quotes. Unset means everywhere it's able to. */
+  markets?: MarketName[];
 }
 
 export interface DeskInfo {
@@ -45,6 +49,10 @@ export interface DeskInfo {
   withdrew: string | undefined;
   /** The agent is pricing on its fallback buffer, because its last AI call failed. */
   aiUnavailable: boolean;
+  markets: MarketName[];
+  usdc: string | undefined;
+  /** ETH in the staked paymaster, which pays gas on the EF devnet. */
+  paymasterEth: string | undefined;
   /** The working behind the formula's latest price, in USDT base units. */
   formula: string | undefined;
   gasCost: string | undefined;
@@ -127,15 +135,19 @@ export async function listDesks(): Promise<DeskInfo[]> {
 
   const whitechain = createPublicClient({ chain: whitechainSepolia, transport: http(env.WHITECHAIN_RPC_URL, { timeout: 8_000 }) });
   const arkiv = arkivReader(env.ARKIV_ACCESS_KEY ?? "");
+  const devnet = createPublicClient({ chain: efDevnet, transport: http(env.EF_RPC_URL, { timeout: 8_000, retryCount: 0 }) });
 
   return Promise.all(
     names.map(async (name) => {
       const prefix = `MAKER_${name.toUpperCase()}`;
       const address = env[`${prefix}_ADDRESS`] as Address;
-      const [wbt, usdt, tglm] = await Promise.allSettled([
+      const paymaster = env[`OCTANE_CLONE_${name.toUpperCase()}`] as Address | undefined;
+      const [wbt, usdt, tglm, usdc, paymasterEth] = await Promise.allSettled([
         whitechain.getBalance({ address }),
         whitechain.readContract({ address: WHITECHAIN_USDT, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
         arkiv.getBalance({ address }),
+        paymaster ? devnet.readContract({ address: EF_USDC, abi: erc20Abi, functionName: "balanceOf", args: [address] }) : Promise.reject(new Error("no paymaster")),
+        paymaster ? devnet.getBalance({ address: paymaster }) : Promise.reject(new Error("no paymaster")),
       ]);
       const lines = recentJournal(name);
       const quoted = lines.findLast((line) => line.event === "quoted");
@@ -152,13 +164,16 @@ export async function listDesks(): Promise<DeskInfo[]> {
         control: readControl(name),
         fee: quoted?.fee === undefined ? undefined : String(quoted.fee),
         margin: env[`${prefix}_SPREAD`],
-        paymaster: env[`OCTANE_CLONE_${name.toUpperCase()}`],
+        paymaster,
         wbt: wbt.status === "fulfilled" ? formatEther(wbt.value) : undefined,
         tglm: tglm.status === "fulfilled" ? formatEther(tglm.value) : undefined,
         usdt: usdt.status === "fulfilled" ? formatUnits(usdt.value, 6) : undefined,
         relayed: lines.filter((line) => line.event === "relayed").length,
         withdrew: lastEvent?.event === "withdrew" ? String(lastEvent.reason) : undefined,
         aiUnavailable: live && regime?.source === "fallback",
+        markets: marketsOf(name),
+        usdc: usdc.status === "fulfilled" ? formatUnits(usdc.value, 6) : undefined,
+        paymasterEth: paymasterEth.status === "fulfilled" ? formatEther(paymasterEth.value) : undefined,
         formula: quoted?.formula === undefined ? undefined : String(quoted.formula),
         gasCost: quoted?.gasCost === undefined ? undefined : String(quoted.gasCost),
         bufferBps: quoted?.bufferBps === undefined ? undefined : String(quoted.bufferBps),
@@ -192,6 +207,15 @@ export function stopMaker(name: string): boolean {
   if (pid === undefined) return false;
   process.kill(pid, "SIGTERM");
   return true;
+}
+
+export function hasPaymaster(name: string): boolean {
+  return Boolean(settings()[`OCTANE_CLONE_${name.toUpperCase()}`]);
+}
+
+/** Where a maker quotes, for makers set up before the choice existed too. */
+export function marketsOf(name: string): MarketName[] {
+  return readControl(name).markets ?? (hasPaymaster(name) ? ["whitechain", "ef-devnet"] : ["whitechain"]);
 }
 
 export function controlOf(name: string): Control {

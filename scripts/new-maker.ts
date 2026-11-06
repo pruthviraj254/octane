@@ -7,11 +7,12 @@ import { env, envHex, run, saveEnv } from "./lib/env.ts";
 
 /**
  * Sets up a maker under any name, with no change to our code, then reports whether its wallet
- * can run. Usage: new-maker <name> [--spread <USDT base units>] [--fund] [--path-a]
+ * can run. Usage: new-maker <name> [--spread <USDT base units>] [--fund] [--path-a] [--ef-only]
  *
  * Keeps a wallet already in .env, so someone with spare WBT can join with their own. --fund is
  * for testing: it lends just enough from our own testnet wallets. --path-a gives the maker its
- * own staked paymaster on the EF devnet, for someone with spare ETH.
+ * own staked paymaster on the EF devnet, for someone with spare ETH, and --ef-only leaves out
+ * Whitechain, so it needs no WBT.
  */
 const MIN_WBT = parseEther("0.01"); // Below this a maker leaves the board.
 const MIN_TGLM = parseEther("0.01");
@@ -36,7 +37,7 @@ function line(label: string, held: bigint, needed: bigint): void {
 await run(async () => {
   const [name, ...flags] = process.argv.slice(2);
   if (!name || !/^[a-z][a-z0-9]{1,15}$/.test(name)) {
-    throw new Error("usage: new-maker <name> [--spread <USDT base units>] [--fund] [--path-a]. Names are lowercase letters and digits.");
+    throw new Error("usage: new-maker <name> [--spread <USDT base units>] [--fund] [--path-a] [--ef-only]. Names are lowercase letters and digits.");
   }
   const spreadFlag = flags.indexOf("--spread");
   const spread = spreadFlag >= 0 ? flags[spreadFlag + 1] : undefined;
@@ -65,11 +66,12 @@ await run(async () => {
   const arkiv = createPublicClient({ chain: arkivChain, transport: http() });
   if ((await arkiv.getChainId()) !== ARKIV_CHAIN_ID) throw new Error("not Rabdi");
 
+  const efOnly = flags.includes("--ef-only");
   let wbt = await whitechain.getBalance({ address });
   let tglm = await arkiv.getBalance({ address });
 
   if (flags.includes("--fund")) {
-    if (wbt < MIN_WBT) {
+    if (!efOnly && wbt < MIN_WBT) {
       const account = privateKeyToAccount(envHex("DEPLOYER_PRIVATE_KEY"));
       const wallet = createWalletClient({ chain: whitechainSepolia, transport: whitechainTransport, account });
       const hash = await wallet.sendTransaction({ to: address, value: LOAN_WBT });
@@ -104,15 +106,15 @@ await run(async () => {
     }
   }
 
-  line("WBT on Whitechain, pays gas", wbt, MIN_WBT);
+  if (!efOnly) line("WBT on Whitechain, pays gas", wbt, MIN_WBT);
   line("tGLM on Arkiv, keeps the quote live", tglm, MIN_TGLM);
 
-  if (wbt >= MIN_WBT && tglm >= MIN_TGLM) {
+  if ((efOnly || wbt >= MIN_WBT) && tglm >= MIN_TGLM) {
     console.log(`\nReady. Join the market with: pnpm maker ${name}`);
     return;
   }
   console.log(`\nNot ready. Send funds to ${address}:`);
-  if (wbt < MIN_WBT) console.log("  WBT:  https://faucet.testnet.whitechain.io");
+  if (!efOnly && wbt < MIN_WBT) console.log("  WBT:  https://faucet.testnet.whitechain.io");
   if (tglm < MIN_TGLM) console.log("  tGLM: https://hub.arkiv.network/faucet");
   console.log(`To test with our own testnet wallets instead: pnpm new-maker ${name} --fund`);
 });

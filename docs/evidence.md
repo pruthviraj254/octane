@@ -98,6 +98,14 @@ The wallet's WBT, ETH and transaction count stayed at 0 throughout.
 | Agent removed | Fixed at 0.085 |
 | Machine with no AI | The desk refused an agent, and allowed a fixed rate |
 
+**Choosing a market, Nov 6.** An EF-only maker, created on the desk, with no WBT at all:
+| Check | Result |
+|---|---|
+| Setup | Borrowed ETH and tGLM only, then staked its own paymaster |
+| Market page | Listed under the EF devnet, not Whitechain |
+| [Carried a USDC payment](https://explorer.altmempool.wtf/tx/0x5cd1705d1d10288cda4815f94da9a1c9a95c1a15aa0ad8d99be985d3d6ef3516) | Its own paymaster paid the gas, and it earned 0.07 USDC holding 0 WBT |
+| Whitechain switched on with 0 WBT | Stayed live on the EF devnet |
+
 ## EF alt-mempool devnet
 
 **First sponsored frame transaction, full checks on:** [transaction](https://explorer.altmempool.wtf/tx/0x97b454ac5b18523175cb171e00010a6dd90a95d825201ebb6abbe5103b07be30), mined with status success, 327,011 gas. The sender held 0 ETH and the maker's staked clone paid. In the same transaction the merchant received 0.01 USDC and the maker 0.05 USDC.

@@ -41,7 +41,7 @@ import {
   optionalSetting,
   setting,
 } from "./config.ts";
-import { ControlFile, TickWatchdog, agentActive, claimProcess, feeFor, pastLimit, releaseProcess, signedUntil, type Control } from "./control.ts";
+import { ControlFile, TickWatchdog, agentActive, claimProcess, feeFor, pastLimit, quotesOn, releaseProcess, signedUntil, type Control } from "./control.ts";
 import { Journal } from "./journal.ts";
 import { JournalPublisher } from "./publish.ts";
 import { gasCost, priceFee, wbtPriceFromSqrt, type Market } from "./pricing.ts";
@@ -230,34 +230,40 @@ async function tick(): Promise<void> {
 
   const seq = BigInt(Math.floor(Date.now() / 1000));
   const wanted = control.read();
-  const lowInventory = market.wbtBalance < MIN_INVENTORY_WBT;
+  const onWhitechain = quotesOn(wanted, "whitechain");
+  // A thin WBT tank only rules out Whitechain. A paymaster's gas is ETH, so Path A carries on.
+  const lowInventory = onWhitechain && market.wbtBalance < MIN_INVENTORY_WBT;
   const shock = wanted.mode === "auto" && regime.name === "shock";
   const timeUp = pastLimit(wanted, seq);
-  if (lowInventory || shock || timeUp) {
-    if (onBoard) {
-      await book.withdraw();
-      onBoard = false;
-      const reason = lowInventory ? "low inventory" : timeUp ? "time limit reached" : "shock regime";
-      journal.write("withdrew", { reason, wbt: market.wbtBalance });
-    }
-    return;
-  }
+
+  const withdraw = async (reason: string) => {
+    if (!onBoard) return;
+    await book.withdraw();
+    onBoard = false;
+    journal.write("withdrew", { reason, wbt: market.wbtBalance });
+  };
+  if (shock || timeUp) return withdraw(timeUp ? "time limit reached" : "shock regime");
 
   const formula = priceFee(config!, market, regime.bufferBps);
-  const fee = feeFor(wanted, formula);
-  const quote: Quote = {
-    maker: account.address,
-    chainId: BigInt(whitechainSepolia.id),
-    settlement: relay,
-    token: WHITECHAIN_USDT,
-    maxGas: MAX_GAS,
-    fee,
-    validUntil: signedUntil(wanted, seq + QUOTE_VALIDITY_SECONDS),
-    nonce: seq,
-  };
-  const entries: StandingQuote[] = [{ quote, sig: await signQuote(account, quote), style: config!.id, seq }];
-  const pathA = await pathAQuote(seq, wanted);
+  const entries: StandingQuote[] = [];
+  if (onWhitechain && !lowInventory) {
+    const quote: Quote = {
+      maker: account.address,
+      chainId: BigInt(whitechainSepolia.id),
+      settlement: relay,
+      token: WHITECHAIN_USDT,
+      maxGas: MAX_GAS,
+      fee: feeFor(wanted, formula),
+      validUntil: signedUntil(wanted, seq + QUOTE_VALIDITY_SECONDS),
+      nonce: seq,
+    };
+    entries.push({ quote, sig: await signQuote(account, quote), style: config!.id, seq });
+  }
+  const pathA = quotesOn(wanted, "ef-devnet") ? await pathAQuote(seq, wanted) : undefined;
   if (pathA) entries.push(pathA);
+  const fee = entries[0]?.quote.fee;
+  if (fee === undefined) return withdraw(lowInventory ? "low inventory" : "nothing to quote");
+
   const result = await book.refresh(entries);
   if (stopping) return;
   if (result.status === "sent") onBoard = true;
@@ -389,7 +395,7 @@ async function bidOnAuctions(): Promise<void> {
   const wanted = control.read();
   const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
   const shock = wanted.mode === "auto" && regime.name === "shock";
-  if (!market || shock || pastLimit(wanted, nowSeconds) || market.wbtBalance < MIN_INVENTORY_WBT) return;
+  if (!market || !quotesOn(wanted, "whitechain") || shock || pastLimit(wanted, nowSeconds) || market.wbtBalance < MIN_INVENTORY_WBT) return;
 
   for (const request of await fetchOpenRequests(reader, BigInt(whitechainSepolia.id))) {
     if (bidsPlaced.has(request.key)) continue;
