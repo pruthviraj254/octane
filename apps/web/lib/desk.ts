@@ -41,14 +41,19 @@ export interface DeskInfo {
   usdt: string | undefined;
   relayed: number;
   withdrew: string | undefined;
+  /** The agent is pricing on its fallback buffer, because its last AI call failed. */
+  aiUnavailable: boolean;
 }
 
 function settings(): Record<string, string | undefined> {
   return existsSync(ENV_FILE) ? parseEnv(readFileSync(ENV_FILE, "utf8")) : {};
 }
 
-/** Only what's needed to run, so no setting from this server reaches a child process. */
-const childEnv = () => ({ PATH: process.env.PATH, HOME: process.env.HOME }) as unknown as NodeJS.ProcessEnv;
+/**
+ * Only what's needed to run, so no setting from this server reaches a child process. USER matters:
+ * without it, Claude Code can't find its login in the macOS Keychain and the AI silently drops out.
+ */
+const childEnv = () => ({ PATH: process.env.PATH, HOME: process.env.HOME, USER: process.env.USER }) as unknown as NodeJS.ProcessEnv;
 
 function readControl(name: string): Control {
   const file = join(DATA, `${name}.control.json`);
@@ -121,6 +126,7 @@ export async function listDesks(): Promise<DeskInfo[]> {
       const lines = recentJournal(name);
       const quoted = lines.findLast((line) => line.event === "quoted");
       const lastEvent = lines.findLast((line) => line.event === "quoted" || line.event === "withdrew");
+      const regime = lines.findLast((line) => line.event === "regime");
       const live = quoted?.ts !== undefined && lastEvent?.event === "quoted" && Date.now() / 1000 - Number(quoted.ts) < LIVE_WITHIN_SECONDS;
       return {
         name,
@@ -137,6 +143,7 @@ export async function listDesks(): Promise<DeskInfo[]> {
         usdt: usdt.status === "fulfilled" ? formatUnits(usdt.value, 6) : undefined,
         relayed: lines.filter((line) => line.event === "relayed").length,
         withdrew: lastEvent?.event === "withdrew" ? String(lastEvent.reason) : undefined,
+        aiUnavailable: live && regime?.source === "fallback",
       };
     }),
   );

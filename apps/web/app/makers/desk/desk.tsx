@@ -331,6 +331,11 @@ function DeskCard({ desk, act }: { desk: DeskInfo; act: Act }) {
       </div>
 
       {desk.withdrew && !desk.live && <p className="mt-3 text-[13px] text-ink-3">Left the board: {desk.withdrew}.</p>}
+      {desk.aiUnavailable && !manualNow && (
+        <p data-testid={`ai-unavailable-${desk.name}`} className="mt-3 text-[13px] leading-relaxed text-caution">
+          The AI isn't answering, so this agent is holding a fixed safety buffer until it's back.
+        </p>
+      )}
 
       {!ready && (
         <div className="mt-4 rounded-xl bg-caution-soft p-3.5">
