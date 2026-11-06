@@ -80,6 +80,11 @@ export function optionalSetting(name: string): string | undefined {
   return process.env[name] ?? settings[name] ?? undefined;
 }
 
+/** The address payers use. On a server, each maker gets a path on its one public address. */
+export function publicAddressOf(endpoint: string, publicBase: string | undefined): string {
+  return publicBase ? `${publicBase.replace(/\/$/, "")}/p/${new URL(endpoint).port}` : endpoint;
+}
+
 export function hexSetting(name: string): `0x${string}` {
   const value = setting(name);
   if (!value.startsWith("0x")) throw new Error(`${name} must start with 0x`);

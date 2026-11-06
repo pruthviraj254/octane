@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { MAKERS, findMaker } from "./config.ts";
+import { MAKERS, findMaker, publicAddressOf } from "./config.ts";
 
 describe("findMaker", () => {
   afterEach(() => {
@@ -24,5 +24,15 @@ describe("findMaker", () => {
 
   it("refuses a name with no wallet", () => {
     expect(findMaker("zzfixture")).toBeUndefined();
+  });
+});
+
+describe("publicAddressOf", () => {
+  it("keeps the local address when there's no public site", () => {
+    expect(publicAddressOf("http://127.0.0.1:8809", undefined)).toBe("http://127.0.0.1:8809");
+  });
+
+  it("gives a maker a path on the public site by its port", () => {
+    expect(publicAddressOf("http://127.0.0.1:8809", "https://octane.example/")).toBe("https://octane.example/p/8809");
   });
 });

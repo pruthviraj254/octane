@@ -23,6 +23,13 @@ octane.rishabhprajapati.me {
 		reverse_proxy 127.0.0.1:8808
 	}
 
+	# Makers added from the desk get a path by port, so they need no entry here.
+	@maker path_regexp maker ^/p/(88[0-9]{2})(/.*)$
+	handle @maker {
+		rewrite * {re.maker.2}
+		reverse_proxy 127.0.0.1:{re.maker.1}
+	}
+
 	handle {
 		reverse_proxy 127.0.0.1:3000
 	}

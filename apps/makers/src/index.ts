@@ -40,6 +40,7 @@ import {
   findMaker,
   hexSetting,
   optionalSetting,
+  publicAddressOf,
   setting,
 } from "./config.ts";
 import { ControlFile, TickWatchdog, agentActive, claimProcess, feeFor, pastLimit, quotesOn, releaseProcess, signedUntil, type Control } from "./control.ts";
@@ -81,7 +82,8 @@ const account = privateKeyToAccount(hexSetting(`${config.envPrefix}_PRIVATE_KEY`
 const relay = hexSetting("OCTANE_RELAY");
 const endpoint = setting(`${config.envPrefix}_ENDPOINT`);
 // A hosted maker listens on `endpoint`, and payers reach it through this public address.
-const publicEndpoint = optionalSetting(`${config.envPrefix}_PUBLIC_ENDPOINT`) || endpoint;
+const publicEndpoint =
+  optionalSetting(`${config.envPrefix}_PUBLIC_ENDPOINT`) || publicAddressOf(endpoint, optionalSetting("OCTANE_PUBLIC_BASE"));
 const accessKey = setting("ARKIV_ACCESS_KEY");
 const journal = new Journal(config.id);
 const control = new ControlFile(config.id);
