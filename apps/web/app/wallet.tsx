@@ -341,7 +341,7 @@ export function Wallet() {
               </div>
             </form>
 
-            {text.trim() && (
+            {text.trim() && (step.kind === "idle" || step.kind === "error") && (
               <p data-testid="typed-network" className="mt-2 pl-1 text-[13px] text-ink-3">
                 Pays on <span className="text-ink-2">{NETWORKS[/usdc/i.test(text) ? "ef-devnet" : "whitechain"].name}</span>
               </p>
