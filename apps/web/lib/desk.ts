@@ -27,6 +27,8 @@ export interface Control {
   agent?: boolean;
   /** Where it quotes. Unset means everywhere it's able to. */
   markets?: MarketName[];
+  /** The linked wallet that funds this maker and receives its earnings. */
+  owner?: string;
 }
 
 export interface DeskInfo {
@@ -188,6 +190,19 @@ export async function listDesks(): Promise<DeskInfo[]> {
 export async function setUpMaker(name: string, flags: string[]): Promise<string> {
   const { stdout } = await run("pnpm", ["new-maker", name, ...flags], { cwd: ROOT, env: childEnv(), timeout: 180_000 });
   return stdout.trim().split("\n").slice(-4).join("\n");
+}
+
+export async function withdrawEarnings(name: string, to: string): Promise<string> {
+  const { stdout } = await run("pnpm", ["withdraw-maker", name, to], { cwd: ROOT, env: childEnv(), timeout: 120_000 });
+  return stdout
+    .trim()
+    .split("\n")
+    .filter((line) => line.startsWith("Sent") || line.startsWith("Nothing"))
+    .join("\n");
+}
+
+export function isRunning(name: string): boolean {
+  return processOf(name) !== undefined;
 }
 
 export function startMaker(name: string): void {

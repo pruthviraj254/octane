@@ -117,6 +117,7 @@ The maker desk at `/makers/desk` does all of this on screen:
 3. **Fund it.** On Whitechain, WBT pays gas, about 0.00075 WBT a payment. On the EF devnet, your own staked paymaster pays it: 0.1 ETH of float and 0.012 ETH staked. tGLM keeps a quote on Arkiv, about 0.034 tGLM an hour. On testnet, the desk can borrow all of this.
 4. **Choose who prices.** With no AI agent, your rate holds exactly until you change it, and no AI is called. With an agent, the formula reprices about every 10 seconds and the desk shows its working. You can force a price over the agent at any time, and it keeps calculating beside your price until you hand back. You can also set and extend a time limit. Fees stay between 0.065 and 0.50 whoever sets them. The agent prices from Whitechain's pool, so an EF-only maker sets its own rate.
 5. **Go live.** Fees arrive as stablecoins in the same transaction as each payment. You can add or leave a market later.
+6. **Own it from your wallet.** Link a browser wallet, fund the desk from it, and withdraw earnings back to it. Earnings can only go to the linked owner.
 
 From the command line, `pnpm new-maker nova --spread 5000 --fund --path-a` then `pnpm maker nova` does the same, and `--ef-only` leaves out Whitechain. To use a wallet you already hold, add `MAKER_NOVA_PRIVATE_KEY=0x…` to `.env` first.
 
@@ -159,6 +160,7 @@ More: [`arkiv/`](arkiv/), [`docs/ef-design.md`](docs/ef-design.md), [`WHITECHAIN
 - Path A fees are a fixed 0.05 USDC unless a maker sets its own rate, because the EF devnet has no ETH/USDC market to price from.
 - Browser wallets can pay in USDT, but they can't sign EIP-8141 frame transactions yet, so USDC on Path A needs the built-in wallet.
 - The maker desk only answers on the machine it runs on, because it can start and stop a maker.
+- A browser wallet can own a desk but can't sign for it, because a maker signs every payment and quote refresh, and `OctaneRelay` requires the maker itself to send each relay.
 - Path A ships Layout 1, so a maker can pay gas for a fee frame that later reverts. The damage is bounded, and [`docs/ef-design.md`](docs/ef-design.md) explains it and a tested fix.
 - Swarm journals use a public gateway's stamps, so they can disappear without notice. See [`arkiv/swarm.md`](arkiv/swarm.md).
 - Agent spend caps are enforced in the MCP server, off-chain. The onchain limit is the maximum fee signed for each payment.

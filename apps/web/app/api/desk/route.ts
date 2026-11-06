@@ -1,18 +1,22 @@
+import { isAddress, isAddressEqual, verifyMessage, type Address, type Hex } from "viem";
 import {
   NAME,
   aiConfigured,
   controlOf,
   deskNames,
   hasPaymaster,
+  isRunning,
   listDesks,
   marketsOf,
   setUpMaker,
   startMaker,
   stopMaker,
+  withdrawEarnings,
   writeControl,
   type Control,
   type MarketName,
 } from "@/lib/desk";
+import { linkMessage } from "@/lib/owner";
 
 const MIN_FEE = 65_000;
 const MAX_FEE = 500_000;
@@ -48,6 +52,8 @@ interface Action {
   paymaster?: unknown;
   agent?: unknown;
   markets?: unknown;
+  owner?: unknown;
+  signature?: unknown;
 }
 
 function validFee(fee: unknown): string | undefined {
@@ -125,6 +131,21 @@ export async function POST(request: Request) {
       writeControl(name, next);
       if (body.action === "start") startMaker(name);
       return Response.json({ control: next });
+    }
+    if (body.action === "link") {
+      if (typeof body.owner !== "string" || !isAddress(body.owner) || typeof body.signature !== "string") return refuse("That wallet couldn't be linked.");
+      const control = controlOf(name);
+      if (control.owner && !isAddressEqual(control.owner as Address, body.owner)) return refuse("This desk already has an owner.");
+      const signed = await verifyMessage({ address: body.owner, message: linkMessage(name, body.owner), signature: body.signature as Hex }).catch(() => false);
+      if (!signed) return refuse("That signature isn't from this wallet.");
+      writeControl(name, { ...control, owner: body.owner });
+      return Response.json({ owner: body.owner });
+    }
+    if (body.action === "withdraw") {
+      const { owner } = controlOf(name);
+      if (!owner) return refuse("Link a wallet first. Earnings only ever go to the linked owner.");
+      if (isRunning(name)) return refuse("Take this desk offline first, because it sends from the same wallet.");
+      return Response.json({ output: await withdrawEarnings(name, owner) });
     }
     if (body.action === "stop") {
       if (!stopMaker(name)) return refuse(`${name} was started from a terminal. Stop it there with Ctrl+C.`);

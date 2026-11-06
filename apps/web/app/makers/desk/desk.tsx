@@ -1,7 +1,7 @@
 "use client";
 
 import { explorerTx } from "@octane/sdk";
-import { ArrowLeft, Bot, Clock, Fuel, Hand, Plus, Power, Undo2 } from "lucide-react";
+import { ArrowLeft, Bot, Check, Clock, Copy, Fuel, Hand, Link2, Plus, Power, Undo2, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { parseEther, parseUnits, type Hash } from "viem";
@@ -12,6 +12,7 @@ import { Ticker } from "@/components/ticker";
 import { Badge, Button, Card, Empty, External, LiveDot, PageHeader, SectionTitle, Skeleton } from "@/components/ui";
 import { capitalise, money, shortAddress } from "@/lib/format";
 import type { DeskInfo, MarketName } from "@/lib/desk";
+import { linkMessage } from "@/lib/owner";
 import { useWalletSession } from "@/lib/wallet-session";
 
 const POLL_MS = 4_000;
@@ -28,6 +29,7 @@ const LIMITS = [
 ];
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
+type ActWithResult = (body: Record<string, unknown>) => Promise<{ output?: string; error?: string }>;
 
 function useDesks() {
   const [desks, setDesks] = useState<DeskInfo[] | undefined>();
@@ -72,7 +74,21 @@ function useDesks() {
     [refresh],
   );
 
-  return { desks, aiReady, problem, act };
+  const actWithResult: ActWithResult = useCallback(
+    async (body) => {
+      const response = await fetch("/api/desk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = (await response.json().catch(() => ({}))) as { output?: string; error?: string };
+      await refresh();
+      return result;
+    },
+    [refresh],
+  );
+
+  return { desks, aiReady, problem, act, actWithResult };
 }
 
 function useNow(): number {
@@ -108,7 +124,7 @@ function rateProblem(rate: string): string | undefined {
 }
 
 export function DeskPage() {
-  const { desks, aiReady, problem, act } = useDesks();
+  const { desks, aiReady, problem, act, actWithResult } = useDesks();
 
   return (
     <section>
@@ -149,7 +165,7 @@ export function DeskPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.05, ease: EASE }}
             >
-              <DeskCard desk={desk} act={act} aiReady={aiReady} />
+              <DeskCard desk={desk} act={act} actWithResult={actWithResult} aiReady={aiReady} />
             </motion.div>
           ))}
         </div>
@@ -283,7 +299,7 @@ function NewDesk({ act, aiReady }: { act: Act; aiReady: boolean }) {
     <Card className="mt-6 animate-rise p-5 sm:p-6">
       <h2 className="text-lg font-semibold tracking-tight [font-family:var(--font-display)]">Set up a new maker</h2>
       <p className="mt-1 text-sm leading-relaxed text-ink-3">
-        This creates a desk wallet on this machine. It has to run around the clock to carry payments, so it can't be a wallet that asks you to approve each one.
+        This creates a desk wallet on this machine, because a maker signs around the clock and a browser wallet would ask you to approve every payment. Your own wallet can own the desk: fund it, then withdraw your earnings back.
       </p>
       <form onSubmit={(event) => void create(event)} className="mt-4 space-y-4">
         <Field label="Maker name" htmlFor="desk-name" hint="Lowercase letters and digits. It's only a label: the choice below sets the chain.">
@@ -338,6 +354,86 @@ function AiPrice({ desk }: { desk: DeskInfo }) {
   );
 }
 
+/**
+ * A browser wallet can't be the wallet that signs here: every payment and quote refresh would
+ * need a popup. So it owns the desk instead: it funds it, and earnings can only go back to it.
+ */
+function OwnerPanel({ desk, actWithResult }: { desk: DeskInfo; actWithResult: ActWithResult }) {
+  const { connected } = useWalletSession();
+  const [busy, setBusy] = useState<string | undefined>();
+  const [message, setMessage] = useState<string | undefined>();
+  const [copied, setCopied] = useState(false);
+  const owner = desk.control.owner;
+  const isOwner = connected !== undefined && owner?.toLowerCase() === connected.address.toLowerCase();
+  const earned = Number(desk.usdt ?? 0) + Number(desk.usdc ?? 0);
+
+  async function link() {
+    if (!connected) return;
+    setBusy("link");
+    setMessage(undefined);
+    try {
+      const signature = await connected.account.signMessage({ message: linkMessage(desk.name, connected.address) });
+      const result = await actWithResult({ action: "link", name: desk.name, owner: connected.address, signature });
+      if (result.error) setMessage(result.error);
+    } catch (error) {
+      setMessage((error as { code?: number }).code === 4001 ? "You declined in your wallet." : "Your wallet couldn't sign that.");
+    }
+    setBusy(undefined);
+  }
+
+  async function withdraw() {
+    setBusy("withdraw");
+    setMessage(undefined);
+    const result = await actWithResult({ action: "withdraw", name: desk.name });
+    setMessage(result.error ?? result.output?.replace(/: https:\S+/g, "").replace(/\n/g, ". "));
+    setBusy(undefined);
+  }
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(desk.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1_500);
+    } catch {
+      // Clipboard access can be blocked. The address is still on the card.
+    }
+  }
+
+  return (
+    <div className="mt-5 rounded-xl border border-line p-3.5" data-testid={`owner-${desk.name}`}>
+      <p className="flex items-center gap-2 text-sm font-medium">
+        <WalletCards size={15} className="text-ink-3" aria-hidden />
+        {owner ? `Owned by ${shortAddress(owner)}` : "Own this desk with your wallet"}
+      </p>
+      <p className="mt-1 text-[13px] leading-relaxed text-ink-3">
+        {owner
+          ? "Earnings can only go to this wallet. The desk wallet just signs each payment automatically."
+          : "Fund the desk from your own wallet, and earnings go back to it. A browser wallet can't sign here itself, because every payment and quote refresh would need a popup."}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {!owner && connected && (
+          <Button variant="secondary" disabled={busy !== undefined} onClick={() => void link()}>
+            <Link2 size={15} aria-hidden />
+            {busy === "link" ? "Check your wallet" : "Link my wallet"}
+          </Button>
+        )}
+        {!owner && !connected && <p className="text-[13px] text-ink-2">Press Connect wallet at the top of the page to start.</p>}
+        {owner && (
+          <Button variant="secondary" disabled={busy !== undefined || earned === 0 || desk.running} onClick={() => void withdraw()}>
+            {busy === "withdraw" ? "Withdrawing" : desk.running ? "Take offline to withdraw" : earned === 0 ? "Nothing to withdraw yet" : "Withdraw earnings to my wallet"}
+          </Button>
+        )}
+        <Button variant="secondary" onClick={() => void copy()}>
+          {copied ? <Check size={15} className="text-accent" aria-hidden /> : <Copy size={15} aria-hidden />}
+          {copied ? "Copied" : "Copy desk address"}
+        </Button>
+      </div>
+      {owner && connected && !isOwner && <p className="mt-2 text-[13px] text-caution">The wallet connected now isn't this desk's owner.</p>}
+      {message && <p className="mt-2 text-[13px] leading-relaxed text-ink-2">{message}</p>}
+    </div>
+  );
+}
+
 function Readout({ label, value, low = false }: { label: string; value: ReactNode; low?: boolean }) {
   return (
     <div className="min-w-0">
@@ -347,7 +443,7 @@ function Readout({ label, value, low = false }: { label: string; value: ReactNod
   );
 }
 
-function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: boolean }) {
+function DeskCard({ desk, act, actWithResult, aiReady }: { desk: DeskInfo; act: Act; actWithResult: ActWithResult; aiReady: boolean }) {
   const { connected, sendWbt } = useWalletSession();
   const now = useNow();
   const manualNow = desk.control.mode === "manual";
@@ -567,6 +663,8 @@ function DeskCard({ desk, act, aiReady }: { desk: DeskInfo; act: Act; aiReady: b
           </div>
         </div>
       </div>
+
+      <OwnerPanel desk={desk} actWithResult={actWithResult} />
 
       {!desk.paymaster && !onDevnet && (
         <div className="mt-5 rounded-xl border border-line p-3.5">
