@@ -77,6 +77,17 @@ Admission report: [`docs/evidence/patha-admission.json`](evidence/patha-admissio
 
 **Devnet outage, Nov 6:** the EF devnet stopped producing blocks at block 408262, around 04:28 IST, and Maker Cautious went on advertising Path A quotes on a chain that couldn't settle them. Makers now check the latest block's age and pause Path A quotes when it's over 120s old.
 
+**Rechecked with the devnet stopped at block 408262, Nov 6.** `scripts/patha-spike.ts` simulated against the deployed contracts through `ethrex_simulateFrameTransaction`, sending nothing:
+| Case | Result |
+|---|---|
+| Valid transaction | 5 of 5 frames passed, with Cautious's clone as payer |
+| Same transaction, canonical verdict | `canonicalMempoolValid: false`, `StorageReadNonSender` |
+| Fee frame pays 1 unit (`underpay`) | Refused at frame 2, the paymaster's `pay` |
+| Fee frame pays the merchant (`redirect`) | Refused at frame 2 |
+| Quote signed by a non-maker (`forged`) | Refused at frame 2 |
+
+The simulation in `docs/evidence/patha-simulation.json` comes from this stopped period, so its hash differs from the mined transaction above. Mining needs a moving chain, so these show validation only.
+
 ## Arkiv (Rabdi)
 
 **Reputation recomputed from public data alone (`pnpm recompute-fade`):** fade, uptime, coverage and fills all matched the board for Maker Aggressive, and the journal passed spot checks against 5 Arkiv writes and 5 Whitechain balances.

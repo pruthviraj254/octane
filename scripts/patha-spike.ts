@@ -19,9 +19,16 @@ import { privateKeyToAccount } from "viem/accounts";
 import { env, envHex, run } from "./lib/env.ts";
 
 const mode = process.argv[2] ?? "simulate";
+/** `dry` as the second argument stops a tampered transaction before it reaches the mempool. */
+const dry = process.argv[3] === "dry";
 const outDir = new URL("../docs/evidence/", import.meta.url);
+const MAX_BLOCK_AGE_SECONDS = 120n;
 
-/** Builds one sponsored Layout 1 transaction. `simulate` sends nothing; `send` does both paths. */
+/**
+ * Builds one sponsored Layout 1 transaction. `simulate` sends nothing and writes nothing.
+ * `send` submits to both mempools and replaces the files in docs/evidence, so only use it on a
+ * moving chain.
+ */
 await run(async () => {
   const client = createPublicClient({ chain: efDevnet, transport: http(env("EF_RPC_URL"), { timeout: 20_000 }) });
   const makerAccount = privateKeyToAccount(envHex("MAKER_CAUTIOUS_PRIVATE_KEY"));
@@ -32,6 +39,13 @@ await run(async () => {
 
   const block = await client.getBlock();
   const now = block.timestamp;
+  const blockAge = BigInt(Math.floor(Date.now() / 1000)) - now;
+  const stopped = blockAge > MAX_BLOCK_AGE_SECONDS;
+  // Nothing can be mined on a stopped chain, and `send` replaces the files in docs/evidence
+  // with whatever comes back. That once swapped the real proof for a refusal.
+  if (mode === "send" && stopped) {
+    throw new Error(`the devnet's latest block is ${blockAge}s old, so send is blocked. Use simulate.`);
+  }
   const quote: Quote = {
     maker: makerAccount.address,
     chainId: BigInt(efDevnet.id),
@@ -83,6 +97,7 @@ await run(async () => {
   if (["underpay", "redirect", "forged"].includes(mode)) {
     const frames = simulation.frames as { succeeded: boolean }[] | undefined;
     console.log(`${mode}: status ${String(simulation.executionStatus)}, frames ${JSON.stringify(frames)}, error ${String(simulation.executionError)}`);
+    if (dry) return;
     try {
       console.log(`alt mempool admitted it: ${await sendToAltMempool(tx)}`);
     } catch (error) {
@@ -90,7 +105,14 @@ await run(async () => {
     }
     return;
   }
-  if (mode !== "send") return;
+  if (mode !== "send") {
+    const frames = simulation.frames as { succeeded: boolean }[] | undefined;
+    console.log(`simulate: status ${String(simulation.executionStatus)}, payer ${String(simulation.payer)}, gas ${String(simulation.gasUsed)}, prefix ${JSON.stringify(simulation.prefixShape)}`);
+    console.log(`frames passed: ${frames?.filter((frame) => frame.succeeded).length} of ${frames?.length}`);
+    console.log(`latest block is ${blockAge}s old, so send is ${stopped ? "blocked" : "allowed"}`);
+    console.log(`canonical mempool would admit it: ${String(simulation.canonicalMempoolValid)}, because ${String(simulation.canonicalMempoolViolation)}`);
+    return;
+  }
 
   try {
     const accepted = await sendToCanonicalMempool(tx);

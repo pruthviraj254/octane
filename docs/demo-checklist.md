@@ -18,7 +18,7 @@ Whitechain requires 2 to 4 minutes showing every party, with zero crypto steps v
 5. **Merchant view** (`/merchant`): the payments arriving.
 6. **Person in the wallet**: "Pay Rahul 1 USDT", Confirm, receipt. Show gas tokens 0 and transactions sent 0.
 7. **Merchant-pays**: the same payment with "Rahul offers to cover the fee" ticked.
-8. **Path A**: "Rahul ko 1 USDC bhejo", then the rejection in `docs/evidence/patha-canonical-rejection.txt` beside the admitted transaction.
+8. **Path A**: "Rahul ko 1 USDC bhejo", then the rejection in `docs/evidence/patha-canonical-rejection.txt` beside the admitted transaction. If the devnet has stopped, run `pnpm --filter @octane/scripts exec tsx patha-spike.ts simulate` instead, plus the same command with `underpay dry`, and show the recorded links.
 9. **Auction**: ask the agent to run a gas auction. Show the three bids.
 10. **Failure**: kill a maker (`pkill -9 -f "src/index.ts balancer"`) and watch its quote leave the board within 30s.
 11. **Reputation**: `pnpm recompute-fade --maker 0x…` matching the board.

@@ -29,3 +29,7 @@ Log anything that can't be verified. Move items to Answered with the source.
 - Arkiv, ordering and pagination: `orderBy(asc(...))`, `limit`, `offset`; stable paging on `$key`. 100 rows per page.
 - Arkiv, `transfer`: `changeOwnership`.
 - Arkiv, sponsored writes: not available; each writer funds its own wallet.
+
+## EF devnet outage, Nov 6
+
+The devnet stopped at block 408262 around 04:28 IST. At about 10:06 IST the alt mempool refused a submission with `IO error: No space left on device` on `/usr/app/data/userOps/000085.log`. Reads and simulation still work. Whether the full disk also stopped block production isn't confirmed. For EF: can the disk be cleared and the chain restarted, and will addresses change?
