@@ -7,7 +7,7 @@ PNPM_VERSION=9.15.4
 TARBALL="node-v${NODE_VERSION}-linux-x64.tar.xz"
 
 sudo apt-get update -qq
-sudo apt-get install -y -qq curl git xz-utils debian-keyring debian-archive-keyring apt-transport-https
+sudo apt-get install -y -qq curl git xz-utils libatomic1 debian-keyring debian-archive-keyring apt-transport-https
 
 cd /tmp
 curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
