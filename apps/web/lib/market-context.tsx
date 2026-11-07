@@ -4,7 +4,7 @@ import { getQuotes, resolveIdentity, type BoardQuote, type Chain } from "@octane
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getMarket } from "./market";
 
-const POLL_MS = 2_000;
+const POLL_MS = 5_000;
 
 export interface Row extends BoardQuote {
   label: string;

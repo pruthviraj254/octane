@@ -27,3 +27,6 @@ contracts/broadcast/
 apps/makers/data/
 packages/mcp/data/
 apps/indexer/data/
+
+# Video work: large files, never committed
+brag-output/

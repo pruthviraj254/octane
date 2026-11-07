@@ -21,9 +21,10 @@ export async function POST(request: Request) {
   }
   if (typeof call.method !== "string" || !READS.has(call.method)) return failure(call.id, "only reads are allowed here");
 
+  // The website has its own key, so public traffic can't use up the quota makers depend on.
   // With no key this is Arkiv's keyless public endpoint. It rate limits a busy page, but a
   // fresh copy of the app still shows the real market.
-  const url = arkivReader(serverSetting("ARKIV_ACCESS_KEY") ?? "").chain.rpcUrls.default.http[0];
+  const url = arkivReader(serverSetting("ARKIV_WEB_ACCESS_KEY") ?? serverSetting("ARKIV_ACCESS_KEY") ?? "").chain.rpcUrls.default.http[0];
   if (!url) return failure(call.id, "no Arkiv endpoint");
 
   try {
